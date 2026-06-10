@@ -131,6 +131,10 @@ Na 1ª sessão do `claude` neste diretório, aprove o servidor (`Pending approva
 confira com `claude mcp list`. Passo a passo completo e armadilhas: ver
 `packages/mcp-server/README.md` e `CLAUDE.md` §13.
 
+> **Usar em outro projeto FastAPI?** Para configurar um repositório consumidor
+> (apontar o `.mcp.json` para o servidor + instalar as skills), veja
+> [`consumer-setup.md`](consumer-setup.md).
+
 ## Configurar as Skills no Claude Code
 
 As skills são arquivos `SKILL.md` (frontmatter `name` + `description`) em
