@@ -160,8 +160,13 @@ Servidor FastMCP (`from fastmcp import FastMCP`, decorator `@mcp.tool`). 4 tools
 | `list_known_versions()` | versões indexadas |
 
 Config por env: `FASTAPI_KB_QDRANT_URL`, `FASTAPI_KB_QDRANT_PATH` (default
-`.qdrant`), `FASTAPI_KB_MODEL`. Conexão ao Claude Desktop: ver
-`packages/mcp-server/README.md`.
+`.qdrant`), `FASTAPI_KB_MODEL`. Conexão ao Claude Desktop e ao **Claude Code**
+(via `.mcp.json` + Docker): ver `packages/mcp-server/README.md`.
+
+O `.mcp.json` da raiz já registra o servidor `fastapi-kb` por HTTP
+(`http://localhost:8000/mcp`, a stack Docker do §13). Na 1ª sessão do `claude`
+neste diretório, aprove o servidor (fica "Pending approval"); confira com
+`claude mcp list`.
 
 O índice é construído uma vez via `@lru_cache` em `_get_index()`.
 

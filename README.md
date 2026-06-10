@@ -104,6 +104,54 @@ Resultado típico (FastAPI 0.115.x): ~870 chunks, dos quais ~680 "normais"
 > No retrieval, considere filtrar `priority != 'low'` por padrão e só incluir
 > `source_code` quando a pergunta for sobre implementação.
 
+## Servir via MCP (Docker) e conectar ao Claude Code
+
+A stack Docker (`mcp-server` + `qdrant`) expõe o protocolo MCP em
+`http://localhost:8000/mcp` (streamable-http). Do zero:
+
+```bash
+docker compose build
+docker compose up -d qdrant
+
+# indexa os 870 chunks NO SERVIDOR Qdrant (--url, nunca --path)
+docker compose run --rm mcp-server \
+  uv run python -m fastapi_kb_rag.build_index \
+    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
+
+docker compose up -d        # sobe o mcp-server em :8000/mcp
+```
+
+O `.mcp.json` na raiz já registra o servidor para o **Claude Code**:
+
+```json
+{ "mcpServers": { "fastapi-kb": { "type": "http", "url": "http://localhost:8000/mcp" } } }
+```
+
+Na 1ª sessão do `claude` neste diretório, aprove o servidor (`Pending approval`);
+confira com `claude mcp list`. Passo a passo completo e armadilhas: ver
+`packages/mcp-server/README.md` e `CLAUDE.md` §13.
+
+## Configurar as Skills no Claude Code
+
+As skills são arquivos `SKILL.md` (frontmatter `name` + `description`) em
+`packages/skills/<nome>/`. O Claude Code descobre skills em `.claude/skills/`,
+então ligamos os dois com symlinks — a fonte de verdade continua em
+`packages/skills/`:
+
+```bash
+mkdir -p .claude/skills
+ln -sfn ../../packages/skills/endpoint-scaffold    .claude/skills/endpoint-scaffold
+ln -sfn ../../packages/skills/dependency-injection .claude/skills/dependency-injection
+```
+
+Os symlinks são versionados (`.claude/skills/` vai pro git), então quem clonar o
+repo já recebe as skills. Para adicionar uma nova: crie
+`packages/skills/<nova>/SKILL.md` e refaça o `ln -sfn` correspondente.
+
+> As skills são carregadas no início da sessão — **reinicie o `claude`** para
+> que apareçam. Confira digitando `/` (devem listar `fastapi-endpoint-scaffold`
+> e `fastapi-dependency-injection`).
+
 ## Divisão de responsabilidades
 
 | Estratégia | O que resolve | Onde mora |
@@ -116,7 +164,7 @@ Resultado típico (FastAPI 0.115.x): ~870 chunks, dos quais ~680 "normais"
 
 - [x] `core`: modelos + chunker (4 estágios, validado contra material real) + fontes
 - [x] `rag`: coleta standalone, ingestão completa (~870 chunks, FastAPI 0.115.x)
-- [x] **vector store Qdrant + embeddings locais** — indexação e retrieval validados
+- [x] **vector store Qdrant + embeddings locais** — indexação e retrieval validadosV
 - [x] filtros de retrieval: version, symbol, kind, exclusão de source_code
 - [x] `mcp-server`: **servidor FastMCP real, 4 tools, testado end-to-end** — busca na doc (`search_reference`, `get_symbol`) + introspecção do projeto (`read_project_openapi`, `list_known_versions`)
 - [x] `skills`: 2 SKILL.md de exemplo
@@ -124,4 +172,5 @@ Resultado típico (FastAPI 0.115.x): ~870 chunks, dos quais ~680 "normais"
 - [ ] (melhoria) tool `validate_against_reference` cruzando projeto × doc
 
 Pipeline completo e funcional: **coletar → ingerir → indexar → servir via MCP**.
-Ver `packages/mcp-server/README.md` para conectar ao Claude Desktop.
+Para conectar ao **Claude Code** (via `.mcp.json` + Docker) ou ao **Claude
+Desktop**, ver `packages/mcp-server/README.md`.

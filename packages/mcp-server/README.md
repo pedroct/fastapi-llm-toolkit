@@ -61,6 +61,51 @@ No arquivo de config do Claude Desktop (`claude_desktop_config.json`):
 > No WSL, garanta que o `python3` do comando seja o do ambiente onde os pacotes
 > `fastapi_kb_*` estão instalados (ex.: caminho absoluto do venv).
 
+## Conectar ao Claude Code (este repo, via Docker)
+
+O `.mcp.json` na raiz já registra o servidor `fastapi-kb` por HTTP, apontando
+para a stack Docker local. Passo a passo, do zero:
+
+```bash
+# 1. construir a imagem e subir só o Qdrant
+docker compose build
+docker compose up -d qdrant
+
+# 2. indexar os 870 chunks NO SERVIDOR Qdrant (--url, NUNCA --path)
+docker compose run --rm mcp-server \
+  uv run python -m fastapi_kb_rag.build_index \
+    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
+
+# 3. subir o mcp-server (streamable-http em :8000/mcp)
+docker compose up -d
+
+# 4. sanidade: o initialize deve responder serverInfo.name = "fastapi-kb"
+curl -siL -X POST http://localhost:8000/mcp/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
+  | grep -i serverInfo
+```
+
+Entrada correspondente no `.mcp.json` (já comitada):
+
+```json
+{
+  "mcpServers": {
+    "fastapi-kb": { "type": "http", "url": "http://localhost:8000/mcp" }
+  }
+}
+```
+
+Na primeira vez que abrir o `claude` neste diretório, ele lista o servidor como
+**Pending approval** — aprove para habilitar as 4 tools (`search_reference`,
+`get_symbol`, `read_project_openapi`, `list_known_versions`). Confira com
+`claude mcp list` (deve mostrar `fastapi-kb: http://localhost:8000/mcp (HTTP)`).
+
+> A stack precisa estar de pé (`docker compose up -d`) para o servidor responder.
+> Se as tools retornarem "Collection doesn't exist", refaça o passo 2 (índice no
+> Qdrant via `--url`). Detalhes e armadilhas: `CLAUDE.md` §13.
+
 ## Nota sobre dependências
 
 `fastmcp` pode conflitar com um `PyJWT` instalado pelo sistema (Debian/WSL).
