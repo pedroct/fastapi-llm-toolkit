@@ -293,6 +293,71 @@ Os 4 hotspots do scan inicial foram marcados como **SAFE** com justificativa:
 
 ---
 
+## 13. Infra de deploy — VPS + GitHub Actions
+
+### Acesso ao VPS (local, via WireGuard)
+
+Alias configurado em `~/.ssh/config`:
+
+```
+Host unio-vps
+    HostName 10.10.10.1       # IP interno WireGuard
+    User deploy
+    IdentityFile ~/.ssh/host_key_staging
+    IdentitiesOnly yes
+```
+
+```bash
+ssh unio-vps                  # acesso direto
+ssh unio-vps 'docker ps'      # verificar containers rodando
+```
+
+O caminho de deploy no VPS é `/home/deploy/fastapi-llm-toolkit`.
+
+### Pipeline CI/CD (GitHub Actions)
+
+| Workflow | Trigger | O que faz |
+|----------|---------|-----------|
+| `CI` | push/PR em `main` e `staging` | ruff, mypy, pip-audit, pytest |
+| `Deploy` | CI verde em `main` | build Docker → push GHCR → SSH pull no VPS |
+
+O job `deploy` usa o environment **production** do GitHub com:
+
+| Tipo | Nome | Valor |
+|------|------|-------|
+| Variable | `VPS_HOST` | `92.112.178.252` (IP público) |
+| Variable | `VPS_HOST_USER` | `deploy` |
+| Variable | `VPS_DEPLOY_PATH` | `/home/deploy/fastapi-llm-toolkit` |
+| Secret | `TOOLKIT_SSH_KEY` | chave privada SSH do arquivo `~/.ssh/host_key_staging` |
+
+> O Actions conecta ao VPS pelo IP público (`92.112.178.252`), não pelo WireGuard.
+> Localmente use `ssh unio-vps` (via `10.10.10.1`).
+
+### Stack no VPS (docker-compose.yml)
+
+Dois serviços: `mcp-server` (imagem GHCR) + `qdrant:v1.12.6`. Volumes persistentes:
+- `qdrant_data` — índice vetorial
+- `model_cache` — modelo de embedding (`BAAI/bge-small-en-v1.5`, ~130 MB, baixa uma vez)
+
+### Setup inicial no VPS (executar uma vez)
+
+Após o primeiro deploy da imagem:
+
+```bash
+ssh unio-vps
+cd /home/deploy/fastapi-llm-toolkit
+
+# construir o índice Qdrant a partir dos docs já presentes na imagem
+docker compose run --rm mcp-server \
+  uv run python -m fastapi_kb_rag.ingest --from-dir docs/raw --version 0.115.x
+
+docker compose run --rm mcp-server \
+  uv run python -m fastapi_kb_rag.build_index \
+    --chunks output/chunks.jsonl --path /qdrant/storage --recreate
+```
+
+---
+
 ## 12. Estado de validação
 
 - **Testes unitários:** 184 testes cobrindo `core`, `rag` e `mcp-server`
