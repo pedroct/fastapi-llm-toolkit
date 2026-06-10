@@ -10,10 +10,17 @@ dependencies = [
     "markdownify>=0.13",
     "qdrant-client>=1.12",
     "sentence-transformers>=3.0",
+    "torch>=2.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.uv.sources]
 fastapi-kb-core = { workspace = true }
+torch = [{ index = "pytorch-cpu" }]
 
 [build-system]
 requires = ["hatchling"]

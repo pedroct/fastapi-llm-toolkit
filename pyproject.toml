@@ -3,6 +3,16 @@
 [tool.uv.workspace]
 members = ["packages/core", "packages/rag", "packages/mcp-server"]
 
+# Força o wheel CPU-only do torch em vez do padrão CUDA (nvidia+triton ~3.4GB).
+# Este servidor só faz inferência de embeddings — GPU não é necessário.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
 [dependency-groups]
 dev = [
     "bandit==1.9.4",

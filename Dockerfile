@@ -20,11 +20,21 @@ COPY scripts/ scripts/
 # Instala os pacotes do workspace
 RUN uv sync --no-dev --frozen
 
+# UV_NO_SYNC=1 deve vir ANTES de qualquer `uv run`, senão o uv run re-sincroniza
+# o workspace e reinstala o grupo dev (semgrep +259MB, etc).
+ENV UV_NO_SYNC=1
+
+# Auto-seed: empacota as páginas /reference e gera o chunks.jsonl DENTRO da
+# imagem (docs/raw é versionado; chunks.jsonl é gitignored e regenerável).
+# Assim a imagem é autossuficiente e o serviço `indexer` do compose semeia o
+# Qdrant no deploy sem nenhum passo manual / scp.
+COPY docs/raw/ docs/raw/
+RUN uv run python -m fastapi_kb_rag.ingest \
+        --from-dir docs/raw --version 0.115.x --out output/chunks.jsonl
+
 ENV FASTAPI_KB_QDRANT_URL=http://qdrant:6333
 ENV MCP_TRANSPORT=streamable-http
 ENV PORT=8000
-# Evita que `uv run` resincronize o venv (reinstalaria deps dev do workspace raiz)
-ENV UV_NO_SYNC=1
 
 EXPOSE 8000
 
