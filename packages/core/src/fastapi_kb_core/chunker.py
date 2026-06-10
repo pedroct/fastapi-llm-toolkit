@@ -16,6 +16,7 @@ A doc do FastAPI é gerada por mkdocstrings e tem layout muito regular:
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from .models import Chunk, make_id
 
@@ -28,7 +29,7 @@ _SOURCE_MARKER = re.compile(r"^Source code in\s+`[^`]+`\s*$", re.MULTILINE)
 def _strip_to_content(md: str) -> str:
     """Descarta o menu antes do 1º H1 e o rodapé Previous/Next."""
     h1 = re.search(r"^# .+$", md, flags=re.MULTILINE)
-    body = md[h1.start():] if h1 else md
+    body = md[h1.start() :] if h1 else md
     nav = re.search(r"^\[Previous ", body, flags=re.MULTILINE)
     if nav:
         body = body[: nav.start()]
@@ -48,7 +49,7 @@ def _slugify_anchor(symbol: str, member: str | None) -> str:
 
 
 def _find_first_h2(lines: list[str]) -> int:
-    return next((i for i, l in enumerate(lines) if l.startswith("## ")), len(lines))
+    return next((i for i, ln in enumerate(lines) if ln.startswith("## ")), len(lines))
 
 
 class _PageParser:
@@ -83,36 +84,57 @@ class _PageParser:
             intro.text = f"{intro.text}\n\n{text}"
             intro.token_estimate = len(intro.text) // 4
         else:
-            self.chunks.append(Chunk(
-                id=make_id(self.url, None, None),
-                text=text, url=self.url, page_title=self.page_title,
-                symbol=None, member=None, kind="page_intro",
-                version=self.version, token_estimate=len(text) // 4,
-            ))
+            self.chunks.append(
+                Chunk(
+                    id=make_id(self.url, None, None),
+                    text=text,
+                    url=self.url,
+                    page_title=self.page_title,
+                    symbol=None,
+                    member=None,
+                    kind="page_intro",
+                    version=self.version,
+                    token_estimate=len(text) // 4,
+                )
+            )
 
     def _flush_chunk(self, text: str, sym: str) -> None:
-        self.chunks.append(Chunk(
-            id=make_id(self.url, sym, self.buf_member),
-            text=text,
-            url=f"{self.url}#{_slugify_anchor(sym, self.buf_member)}",
-            page_title=self.page_title,
-            symbol=sym, member=self.buf_member,
-            kind=self.buf_kind or "symbol",
-            badges=self.buf_badges, version=self.version,
-            token_estimate=len(text) // 4,
-        ))
+        self.chunks.append(
+            Chunk(
+                id=make_id(self.url, sym, self.buf_member),
+                text=text,
+                url=f"{self.url}#{_slugify_anchor(sym, self.buf_member)}",
+                page_title=self.page_title,
+                symbol=sym,
+                member=self.buf_member,
+                kind=self.buf_kind or "symbol",
+                badges=self.buf_badges,
+                version=self.version,
+                token_estimate=len(text) // 4,
+            )
+        )
 
     def process_h2(self, line: str, heading: str) -> None:
         self.flush()
-        self.current_symbol = heading.split()[0]
-        self.buf, self.buf_member, self.buf_kind, self.buf_badges = [line], None, "symbol", []
+        self.current_symbol = heading.split(maxsplit=1)[0]
+        self.buf, self.buf_member, self.buf_kind, self.buf_badges = (
+            [line],
+            None,
+            "symbol",
+            [],
+        )
 
     def process_h34(self, line: str, heading_raw: str) -> None:
         self.flush()
         cleaned = _clean_heading(heading_raw)
         name = cleaned.split()[0].replace("\\_", "_").replace("\\", "")
         badges = re.findall(r"`([^`]+)`", heading_raw)
-        self.buf, self.buf_member, self.buf_kind, self.buf_badges = [line], name, "member", badges
+        self.buf, self.buf_member, self.buf_kind, self.buf_badges = (
+            [line],
+            name,
+            "member",
+            badges,
+        )
 
     def process_line(self, line: str) -> None:
         h2 = re.match(r"^## (.+)$", line)
@@ -145,12 +167,19 @@ def chunk_reference_page(md: str, url: str, version: str = "unknown") -> list[Ch
 
     intro = "\n".join(lines[:first_h2]).strip()
     if intro:
-        parser.chunks.append(Chunk(
-            id=make_id(url, None, None),
-            text=intro, url=url, page_title=page_title,
-            symbol=None, member=None, kind="page_intro",
-            version=version, token_estimate=len(intro) // 4,
-        ))
+        parser.chunks.append(
+            Chunk(
+                id=make_id(url, None, None),
+                text=intro,
+                url=url,
+                page_title=page_title,
+                symbol=None,
+                member=None,
+                kind="page_intro",
+                version=version,
+                token_estimate=len(intro) // 4,
+            )
+        )
 
     for line in lines[first_h2:]:
         parser.process_line(line)
@@ -164,7 +193,7 @@ def chunk_reference_page(md: str, url: str, version: str = "unknown") -> list[Ch
 # ---------------------------------------------------------------------------
 
 
-def split_source_code(chunks: list[dict]) -> list[dict]:
+def split_source_code(chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """
     Separa o bloco 'Source code in ...' (implementação interna do FastAPI) do
     conteúdo principal. O código vira um chunk próprio kind='source_code',
@@ -178,7 +207,7 @@ def split_source_code(chunks: list[dict]) -> list[dict]:
             out.append(c)
             continue
         main_text = text[: m.start()].strip()
-        source_text = text[m.start():].strip()
+        source_text = text[m.start() :].strip()
 
         main = {**c, "text": main_text, "token_estimate": len(main_text) // 4}
         out.append(main)
@@ -186,17 +215,19 @@ def split_source_code(chunks: list[dict]) -> list[dict]:
         label = c.get("member") or c.get("symbol") or "?"
         ctx = f"Código-fonte de `{label}`:\n\n"
         body = ctx + source_text
-        out.append({
-            **c,
-            "id": c["id"] + "_src",
-            "text": body,
-            "kind": "source_code",
-            "priority": "low",
-            "parent_member": c.get("member"),
-            "member": None,
-            "grouped_members": None,
-            "token_estimate": len(body) // 4,
-        })
+        out.append(
+            {
+                **c,
+                "id": c["id"] + "_src",
+                "text": body,
+                "kind": "source_code",
+                "priority": "low",
+                "parent_member": c.get("member"),
+                "member": None,
+                "grouped_members": None,
+                "token_estimate": len(body) // 4,
+            }
+        )
     return out
 
 
@@ -208,32 +239,32 @@ def _extract_param_table(text: str) -> tuple[str, list[tuple[str, str]]]:
     """
     lines = text.splitlines()
     head, params, in_table = [], [], False
-    for l in lines:
-        if _TABLE_HEADER.match(l):
+    for ln in lines:
+        if _TABLE_HEADER.match(ln):
             in_table = True
-            head.append(l)
+            head.append(ln)
             continue
         if in_table:
-            if re.match(r"^\|\s*-+\s*\|", l):
-                head.append(l)
+            if re.match(r"^\|\s*-+\s*\|", ln):
+                head.append(ln)
                 continue
-            m = _PARAM_ROW.match(l)
+            m = _PARAM_ROW.match(ln)
             if m:
                 name = m.group(1).replace("\\_", "_").replace("\\", "")
-                params.append((name, l))
+                params.append((name, ln))
                 continue
             else:
                 in_table = False
         if not in_table:
-            head.append(l)
+            head.append(ln)
     return "\n".join(head).strip(), params
 
 
 def split_large_param_chunks(
-    chunks: list[dict],
+    chunks: list[dict[str, Any]],
     max_tokens: int = 1500,
     params_per_subchunk: int = 4,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     Divide chunks grandes que contêm tabela de parâmetros em:
       - 1 chunk 'cabeça' (assinatura + exemplo + prosa, tabela removida)
@@ -255,25 +286,35 @@ def split_large_param_chunks(
         signature = sig_match.group(0) if sig_match else ""
         parent = c.get("member") or c.get("symbol") or "?"
 
-        head = {**c, "text": head_text, "kind": "member" if c["member"] else "symbol",
-                "token_estimate": len(head_text) // 4}
+        head = {
+            **c,
+            "text": head_text,
+            "kind": "member" if c["member"] else "symbol",
+            "token_estimate": len(head_text) // 4,
+        }
         out.append(head)
 
         for i in range(0, len(params), params_per_subchunk):
-            grp = params[i:i + params_per_subchunk]
+            grp = params[i : i + params_per_subchunk]
             names = [n for n, _ in grp]
             body = "\n".join(row for _, row in grp)
-            ctx = f"Parâmetros de `{parent}`:\n{signature}\n\n" if signature else f"Parâmetros de `{parent}`:\n\n"
+            ctx = (
+                f"Parâmetros de `{parent}`:\n{signature}\n\n"
+                if signature
+                else f"Parâmetros de `{parent}`:\n\n"
+            )
             text = ctx + "| PARAMETER | DESCRIPTION |\n| --- | --- |\n" + body
-            out.append({
-                **c,
-                "id": c["id"] + f"_p{i // params_per_subchunk}",
-                "text": text,
-                "kind": "param_group",
-                "member": None,
-                "parent_member": c.get("member"),
-                "param_names": names,
-                "grouped_members": None,
-                "token_estimate": len(text) // 4,
-            })
+            out.append(
+                {
+                    **c,
+                    "id": c["id"] + f"_p{i // params_per_subchunk}",
+                    "text": text,
+                    "kind": "param_group",
+                    "member": None,
+                    "parent_member": c.get("member"),
+                    "param_names": names,
+                    "grouped_members": None,
+                    "token_estimate": len(text) // 4,
+                }
+            )
     return out

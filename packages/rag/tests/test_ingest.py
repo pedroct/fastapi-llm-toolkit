@@ -3,14 +3,18 @@
 import json
 import os
 import tempfile
-
-import pytest
+from typing import Any
 
 from fastapi_kb_rag.ingest import coalesce_small_members, process_dir, write_jsonl
 
 
-def _member(id_: str, symbol: str, member: str, token_estimate: int,
-            url: str = "https://fastapi.tiangolo.com/reference/fastapi/") -> dict:
+def _member(
+    id_: str,
+    symbol: str,
+    member: str,
+    token_estimate: int,
+    url: str = "https://fastapi.tiangolo.com/reference/fastapi/",
+) -> dict[str, Any]:
     return {
         "id": id_,
         "text": f"Conteúdo de {member}.",
@@ -29,7 +33,7 @@ def _member(id_: str, symbol: str, member: str, token_estimate: int,
     }
 
 
-def _symbol(id_: str, symbol: str) -> dict:
+def _symbol(id_: str, symbol: str) -> dict[str, Any]:
     return {
         "id": id_,
         "text": f"Símbolo {symbol}.",
@@ -51,6 +55,7 @@ def _symbol(id_: str, symbol: str) -> dict:
 # ---------------------------------------------------------------------------
 # coalesce_small_members
 # ---------------------------------------------------------------------------
+
 
 class TestCoalesceSmallMembers:
     def test_lista_vazia(self) -> None:
@@ -140,6 +145,7 @@ class TestCoalesceSmallMembers:
 # write_jsonl
 # ---------------------------------------------------------------------------
 
+
 class TestWriteJsonl:
     def test_escreve_arquivo(self) -> None:
         chunks = [{"id": "c1", "text": "um"}, {"id": "c2", "text": "dois"}]
@@ -154,10 +160,10 @@ class TestWriteJsonl:
             path = os.path.join(d, "chunks.jsonl")
             write_jsonl(chunks, path)
             with open(path, encoding="utf-8") as f:
-                lines = [l for l in f if l.strip()]
+                lines = [ln for ln in f if ln.strip()]
             assert len(lines) == 2
-            for l in lines:
-                json.loads(l)  # não deve lançar
+            for ln in lines:
+                json.loads(ln)  # não deve lançar
 
     def test_cria_diretorio_pai(self) -> None:
         with tempfile.TemporaryDirectory() as d:

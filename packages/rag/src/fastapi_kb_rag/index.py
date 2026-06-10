@@ -13,12 +13,15 @@ Decisões de design firmadas:
 
 from __future__ import annotations
 
-import json
-import uuid
 from dataclasses import dataclass
+import json
+from typing import Any
+import uuid
+
+from .embedder import Embedder
 
 
-def build_embedding_text(chunk: dict) -> str:
+def build_embedding_text(chunk: dict[str, Any]) -> str:
     """Prefixa o chunk com contexto para melhorar a recuperação de pedaços isolados."""
     parts = [chunk.get("page_title", "")]
     if chunk.get("symbol"):
@@ -33,14 +36,14 @@ def build_embedding_text(chunk: dict) -> str:
 
 @dataclass
 class RetrievalResult:
-    chunk: dict
+    chunk: dict[str, Any]
     score: float
 
 
 class VectorIndex:
     """Contrato consumido pelo MCP e pelas Skills."""
 
-    def upsert(self, chunks: list[dict]) -> None:
+    def upsert(self, chunks: list[dict[str, Any]]) -> None:
         raise NotImplementedError
 
     def query(
@@ -61,8 +64,13 @@ class QdrantIndex(VectorIndex):
     Os metadados do chunk viram payload, habilitando os filtros de design.
     """
 
-    def __init__(self, embedder, collection: str = "fastapi_reference",
-                 url: str | None = None, path: str | None = None):
+    def __init__(
+        self,
+        embedder: Embedder,
+        collection: str = "fastapi_reference",
+        url: str | None = None,
+        path: str | None = None,
+    ) -> None:
         from qdrant_client import QdrantClient
 
         self.embedder = embedder
@@ -70,7 +78,7 @@ class QdrantIndex(VectorIndex):
         if url:
             self.client = QdrantClient(url=url)
         elif path:
-            self.client = QdrantClient(path=path)   # embarcado, persistido em disco
+            self.client = QdrantClient(path=path)  # embarcado, persistido em disco
         else:
             self.client = QdrantClient(":memory:")  # efêmero, para testes
 
@@ -84,15 +92,17 @@ class QdrantIndex(VectorIndex):
         if not exists:
             self.client.create_collection(
                 collection_name=self.collection,
-                vectors_config=VectorParams(size=self.embedder.dim, distance=Distance.COSINE),
+                vectors_config=VectorParams(
+                    size=self.embedder.dim, distance=Distance.COSINE
+                ),
             )
 
-    def upsert(self, chunks: list[dict], batch_size: int = 128) -> None:
+    def upsert(self, chunks: list[dict[str, Any]], batch_size: int = 128) -> None:
         from qdrant_client.models import PointStruct
 
         self.ensure_collection()
         for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i + batch_size]
+            batch = chunks[i : i + batch_size]
             vectors = self.embedder.encode([build_embedding_text(c) for c in batch])
             points = [
                 PointStruct(
@@ -101,7 +111,7 @@ class QdrantIndex(VectorIndex):
                     vector=v,
                     payload=c,
                 )
-                for c, v in zip(batch, vectors)
+                for c, v in zip(batch, vectors, strict=True)
             ]
             self.client.upsert(collection_name=self.collection, points=points)
 
@@ -114,9 +124,11 @@ class QdrantIndex(VectorIndex):
         kind: str | None = None,
         include_low_priority: bool = False,
     ) -> list[RetrievalResult]:
-        from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchExcept
+        from qdrant_client.models import FieldCondition, Filter, MatchExcept, MatchValue
 
-        must = []
+        # list[Any]: o construtor Filter aceita um union de condições e a lista
+        # é invariante — Any evita o conflito de tipos sem precisar enumerar o union.
+        must: list[Any] = []
         if version:
             must.append(FieldCondition(key="version", match=MatchValue(value=version)))
         if symbol:
@@ -125,7 +137,9 @@ class QdrantIndex(VectorIndex):
             must.append(FieldCondition(key="kind", match=MatchValue(value=kind)))
         if not include_low_priority:
             # exclui priority == 'low' (chunks de source_code)
-            must.append(FieldCondition(key="priority", match=MatchExcept(**{"except": ["low"]})))
+            must.append(
+                FieldCondition(key="priority", match=MatchExcept(**{"except": ["low"]}))
+            )
 
         qfilter = Filter(must=must) if must else None
         vec = self.embedder.encode([text])[0]
@@ -136,9 +150,12 @@ class QdrantIndex(VectorIndex):
             query_filter=qfilter,
             with_payload=True,
         )
-        return [RetrievalResult(chunk=p.payload, score=p.score) for p in resp.points]
+        # p.payload pode ser None no protocolo do Qdrant; garante um dict.
+        return [
+            RetrievalResult(chunk=p.payload or {}, score=p.score) for p in resp.points
+        ]
 
 
-def load_chunks(jsonl_path: str) -> list[dict]:
+def load_chunks(jsonl_path: str) -> list[dict[str, Any]]:
     with open(jsonl_path, encoding="utf-8") as f:
-        return [json.loads(l) for l in f if l.strip()]
+        return [json.loads(line) for line in f if line.strip()]

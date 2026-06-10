@@ -1,8 +1,9 @@
 """Testes para fastapi_kb_rag.index — build_embedding_text, QdrantIndex, load_chunks."""
 
 import json
-import tempfile
 import os
+import tempfile
+from typing import Any
 
 import pytest
 
@@ -21,29 +22,30 @@ class FakeEmbedder:
         return [[0.1, 0.2, 0.3, 0.4]] * len(texts)
 
 
-def _chunk_dict(**kwargs: object) -> dict:
-    defaults = dict(
-        id="abc",
-        text="conteúdo do chunk",
-        url="https://fastapi.tiangolo.com/reference/fastapi/",
-        page_title="FastAPI",
-        symbol=None,
-        member=None,
-        parent_member=None,
-        kind="page_intro",
-        badges=[],
-        priority="normal",
-        version="0.115.x",
-        grouped_members=None,
-        param_names=None,
-        token_estimate=10,
-    )
+def _chunk_dict(**kwargs: object) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "id": "abc",
+        "text": "conteúdo do chunk",
+        "url": "https://fastapi.tiangolo.com/reference/fastapi/",
+        "page_title": "FastAPI",
+        "symbol": None,
+        "member": None,
+        "parent_member": None,
+        "kind": "page_intro",
+        "badges": [],
+        "priority": "normal",
+        "version": "0.115.x",
+        "grouped_members": None,
+        "param_names": None,
+        "token_estimate": 10,
+    }
     return {**defaults, **kwargs}
 
 
 # ---------------------------------------------------------------------------
 # build_embedding_text
 # ---------------------------------------------------------------------------
+
 
 class TestBuildEmbeddingText:
     def test_sem_prefixo_retorna_text(self) -> None:
@@ -62,8 +64,12 @@ class TestBuildEmbeddingText:
         assert "fastapi.FastAPI" in result
 
     def test_member_adicionado(self) -> None:
-        c = _chunk_dict(page_title="FastAPI", symbol="fastapi.FastAPI",
-                        member="add_route", text="conteúdo")
+        c = _chunk_dict(
+            page_title="FastAPI",
+            symbol="fastapi.FastAPI",
+            member="add_route",
+            text="conteúdo",
+        )
         result = build_embedding_text(c)
         assert "add_route" in result
 
@@ -73,8 +79,12 @@ class TestBuildEmbeddingText:
         assert "init_app" in result
 
     def test_partes_separadas_por_separador(self) -> None:
-        c = _chunk_dict(page_title="FastAPI", symbol="fastapi.FastAPI",
-                        member="add_route", text="conteúdo")
+        c = _chunk_dict(
+            page_title="FastAPI",
+            symbol="fastapi.FastAPI",
+            member="add_route",
+            text="conteúdo",
+        )
         result = build_embedding_text(c)
         assert " · " in result
 
@@ -92,6 +102,7 @@ class TestBuildEmbeddingText:
 # RetrievalResult
 # ---------------------------------------------------------------------------
 
+
 class TestRetrievalResult:
     def test_cria_com_chunk_e_score(self) -> None:
         chunk = _chunk_dict()
@@ -108,6 +119,7 @@ class TestRetrievalResult:
 # QdrantIndex com :memory:
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def idx() -> QdrantIndex:
     index = QdrantIndex(FakeEmbedder())
@@ -121,7 +133,7 @@ class TestQdrantIndexEnsureCollection:
         index.ensure_collection()
         assert index.client.collection_exists(index.collection)
 
-    def test_recreate_destrói_e_recria(self) -> None:
+    def test_recreate_destroi_e_recria(self) -> None:
         index = QdrantIndex(FakeEmbedder())
         index.ensure_collection()
         index.ensure_collection(recreate=True)
@@ -162,16 +174,39 @@ class TestQdrantIndexQuery:
     def _populated(self) -> QdrantIndex:
         index = QdrantIndex(FakeEmbedder())
         index.ensure_collection()
-        index.upsert([
-            _chunk_dict(id="sym1", kind="symbol", symbol="fastapi.FastAPI",
-                        version="0.115.x", priority="normal"),
-            _chunk_dict(id="src1", kind="source_code", symbol="fastapi.FastAPI",
-                        version="0.115.x", priority="low"),
-            _chunk_dict(id="mem1", kind="member", symbol="fastapi.FastAPI",
-                        member="add_route", version="0.115.x", priority="normal"),
-            _chunk_dict(id="v2", kind="symbol", symbol="fastapi.FastAPI",
-                        version="0.116.x", priority="normal"),
-        ])
+        index.upsert(
+            [
+                _chunk_dict(
+                    id="sym1",
+                    kind="symbol",
+                    symbol="fastapi.FastAPI",
+                    version="0.115.x",
+                    priority="normal",
+                ),
+                _chunk_dict(
+                    id="src1",
+                    kind="source_code",
+                    symbol="fastapi.FastAPI",
+                    version="0.115.x",
+                    priority="low",
+                ),
+                _chunk_dict(
+                    id="mem1",
+                    kind="member",
+                    symbol="fastapi.FastAPI",
+                    member="add_route",
+                    version="0.115.x",
+                    priority="normal",
+                ),
+                _chunk_dict(
+                    id="v2",
+                    kind="symbol",
+                    symbol="fastapi.FastAPI",
+                    version="0.116.x",
+                    priority="normal",
+                ),
+            ]
+        )
         return index
 
     def test_retorna_lista(self) -> None:
@@ -199,14 +234,16 @@ class TestQdrantIndexQuery:
         assert versions == {"0.116.x"}
 
     def test_filtra_por_symbol(self) -> None:
-        results = self._populated().query("qualquer", k=10,
-                                          symbol="fastapi.FastAPI", version="0.115.x")
+        results = self._populated().query(
+            "qualquer", k=10, symbol="fastapi.FastAPI", version="0.115.x"
+        )
         symbols = {r.chunk.get("symbol") for r in results}
         assert symbols == {"fastapi.FastAPI"}
 
     def test_filtra_por_kind(self) -> None:
-        results = self._populated().query("qualquer", k=10, kind="symbol",
-                                          version="0.115.x")
+        results = self._populated().query(
+            "qualquer", k=10, kind="symbol", version="0.115.x"
+        )
         kinds = {r.chunk.get("kind") for r in results}
         assert kinds == {"symbol"}
 
@@ -229,11 +266,13 @@ class TestQdrantIndexQuery:
 # load_chunks
 # ---------------------------------------------------------------------------
 
+
 class TestLoadChunks:
     def test_carrega_chunks_validos(self) -> None:
         chunks = [_chunk_dict(id="c1"), _chunk_dict(id="c2")]
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False
+        ) as f:
             for c in chunks:
                 f.write(json.dumps(c) + "\n")
             path = f.name
@@ -245,8 +284,9 @@ class TestLoadChunks:
             os.unlink(path)
 
     def test_ignora_linhas_vazias(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False
+        ) as f:
             f.write(json.dumps(_chunk_dict(id="c1")) + "\n")
             f.write("\n")
             f.write(json.dumps(_chunk_dict(id="c2")) + "\n")
@@ -258,8 +298,9 @@ class TestLoadChunks:
             os.unlink(path)
 
     def test_retorna_lista_vazia_para_arquivo_vazio(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False
+        ) as f:
             path = f.name
         try:
             assert load_chunks(path) == []
@@ -268,8 +309,9 @@ class TestLoadChunks:
 
     def test_campos_preservados(self) -> None:
         chunk = _chunk_dict(id="x", symbol="fastapi.FastAPI", version="0.115.x")
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", encoding="utf-8", delete=False
+        ) as f:
             f.write(json.dumps(chunk) + "\n")
             path = f.name
         try:

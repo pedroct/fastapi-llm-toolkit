@@ -27,24 +27,30 @@ Execução:
 
 from __future__ import annotations
 
-import os
 from functools import lru_cache
+import os
+from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
 
 from .project import load_openapi, summarize_openapi
 
+if TYPE_CHECKING:
+    from fastapi_kb_rag import QdrantIndex
+
 mcp = FastMCP("fastapi-kb")
 
 
 @lru_cache(maxsize=1)
-def _get_index():
+def _get_index() -> QdrantIndex:
     """Constrói o índice uma vez (embedder + Qdrant), reutilizado entre chamadas."""
     from fastapi_kb_rag import LocalEmbedder, QdrantIndex
 
     model = os.environ.get("FASTAPI_KB_MODEL", "BAAI/bge-small-en-v1.5")
     url = os.environ.get("FASTAPI_KB_QDRANT_URL")
-    path = os.environ.get("FASTAPI_KB_QDRANT_PATH", None if url else ".qdrant")
+    path = os.environ.get("FASTAPI_KB_QDRANT_PATH")
+    if path is None and url is None:
+        path = ".qdrant"  # backend embarcado quando nada é configurado
     emb = LocalEmbedder(model)
     return QdrantIndex(emb, url=url, path=path)
 
@@ -56,7 +62,7 @@ def search_reference(
     kind: str | None = None,
     include_source_code: bool = False,
     k: int = 5,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """
     Busca na documentação oficial /reference do FastAPI por relevância semântica.
 
@@ -69,7 +75,10 @@ def search_reference(
     """
     idx = _get_index()
     results = idx.query(
-        query, k=k, version=version, kind=kind,
+        query,
+        k=k,
+        version=version,
+        kind=kind,
         include_low_priority=include_source_code,
     )
     return [
@@ -86,7 +95,9 @@ def search_reference(
 
 
 @mcp.tool
-def get_symbol(symbol: str, version: str = "0.115.x", k: int = 30) -> list[dict]:
+def get_symbol(
+    symbol: str, version: str = "0.115.x", k: int = 30
+) -> list[dict[str, Any]]:
     """
     Retorna os trechos de um símbolo específico do FastAPI (ex.: 'fastapi.APIRouter',
     'fastapi.UploadFile'). Útil para ver a classe inteira: assinatura e membros.
@@ -106,7 +117,7 @@ def get_symbol(symbol: str, version: str = "0.115.x", k: int = 30) -> list[dict]
 
 
 @mcp.tool
-def read_project_openapi(path_or_url: str) -> dict:
+def read_project_openapi(path_or_url: str) -> dict[str, Any]:
     """
     Lê o openapi.json do projeto FastAPI do usuário (caminho local OU URL como
     http://localhost:8000/openapi.json) e retorna um resumo: título, versão do
@@ -122,14 +133,15 @@ def read_project_openapi(path_or_url: str) -> dict:
 def list_known_versions() -> list[str]:
     """Lista as versões do FastAPI indexadas na base de conhecimento."""
     idx = _get_index()
-    from qdrant_client.models import Filter
     # varre o payload coletando versões distintas (amostragem via scroll)
     seen = set()
     offset = None
     for _ in range(20):
         points, offset = idx.client.scroll(
             collection_name=idx.collection,
-            limit=256, offset=offset, with_payload=["version"],
+            limit=256,
+            offset=offset,
+            with_payload=["version"],
         )
         for p in points:
             v = (p.payload or {}).get("version")
@@ -145,7 +157,7 @@ def main() -> None:
     if transport == "streamable-http":
         mcp.run(
             transport="streamable-http",
-            host="0.0.0.0",
+            host="0.0.0.0",  # noqa: S104 — bind em todas as interfaces é intencional no container
             port=int(os.environ.get("PORT", "8000")),
         )
     else:

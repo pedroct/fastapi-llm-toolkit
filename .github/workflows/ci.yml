@@ -32,7 +32,26 @@ jobs:
         run: uv run mypy packages/
 
       - name: Auditoria de dependências (pip-audit)
-        run: uv run pip-audit
+        # Vulns em deps TRANSITIVAS sem correção aplicável hoje — ignoradas com
+        # justificativa e a revisar periodicamente:
+        #   pyjwt 2.12.1 (PYSEC-2026-175/177/178/179): fix em 2.13.0, mas está
+        #     preso por mcp[crypto] e semgrep[crypto]; não destrava sem bumpar
+        #     esses upstream (semgrep é dev-only, fora da imagem de produção).
+        #   fastmcp 2.14.0 (CVE-2025-64340, CVE-2026-27124): fix só em 3.2.0
+        #     (major, quebra API — ver CLAUDE.md §10). CVE-2025-69196 tem fix em
+        #     2.14.2, mas 2.14.2 exige mcp>=1.24.0 e gera conflito de resolução.
+        #   diskcache 5.6.3 (CVE-2025-69872): sem versão de correção upstream.
+        # TODO: reavaliar quando mcp>=1.24 destravar ou fastmcp 3.x for viável.
+        run: |
+          uv run pip-audit \
+            --ignore-vuln PYSEC-2026-175 \
+            --ignore-vuln PYSEC-2026-177 \
+            --ignore-vuln PYSEC-2026-178 \
+            --ignore-vuln PYSEC-2026-179 \
+            --ignore-vuln CVE-2025-69196 \
+            --ignore-vuln CVE-2025-64340 \
+            --ignore-vuln CVE-2026-27124 \
+            --ignore-vuln CVE-2025-69872
 
       - name: Testes (pytest + cobertura)
         run: uv run pytest

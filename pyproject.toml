@@ -64,12 +64,13 @@ select = [
 ]
 ignore = [
     "E501",     # line-too-long — ruff format já trata
-    "ANN101",   # self sem anotação — desnecessário
-    "ANN102",   # cls sem anotação — desnecessário
     "ANN401",   # Any permitido quando necessário
     "PLR0913",  # too-many-arguments — funções de ingestão têm muitos parâmetros
     "PLR2004",  # magic-value-comparison — aceitável em testes e status codes
     "S101",     # assert — necessário em testes pytest
+    "PLC0415",  # import-outside-top-level — imports lazy de deps pesadas/opcionais
+                # (qdrant-client, sentence-transformers, requests, fastmcp) são
+                # intencionais: evitam carregar libs caras no import do módulo (§8)
 ]
 
 [tool.ruff.lint.per-file-ignores]

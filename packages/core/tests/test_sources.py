@@ -36,13 +36,21 @@ class TestReferenceUrls:
 
 class TestUrlToSlug:
     def test_url_simples(self) -> None:
-        assert url_to_slug("https://fastapi.tiangolo.com/reference/fastapi/") == "fastapi"
+        assert (
+            url_to_slug("https://fastapi.tiangolo.com/reference/fastapi/") == "fastapi"
+        )
 
     def test_url_aninhada(self) -> None:
-        assert url_to_slug("https://fastapi.tiangolo.com/reference/openapi/docs/") == "openapi__docs"
+        assert (
+            url_to_slug("https://fastapi.tiangolo.com/reference/openapi/docs/")
+            == "openapi__docs"
+        )
 
     def test_url_openapi_models(self) -> None:
-        assert url_to_slug("https://fastapi.tiangolo.com/reference/openapi/models/") == "openapi__models"
+        assert (
+            url_to_slug("https://fastapi.tiangolo.com/reference/openapi/models/")
+            == "openapi__models"
+        )
 
     def test_sem_barra_final(self) -> None:
         slug = url_to_slug("https://fastapi.tiangolo.com/reference/parameters")

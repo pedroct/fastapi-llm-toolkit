@@ -9,11 +9,12 @@ texto técnico, bom equilíbrio velocidade/qualidade para doc de API em inglês.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Protocol, cast
 
 
 class Embedder(Protocol):
     """Contrato mínimo. Qualquer objeto com estes atributos serve ao índice."""
+
     dim: int
 
     def encode(self, texts: list[str]) -> list[list[float]]: ...
@@ -22,7 +23,7 @@ class Embedder(Protocol):
 class LocalEmbedder:
     """Embedder baseado em sentence-transformers (local, sem API)."""
 
-    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5") -> None:
         from sentence_transformers import SentenceTransformer
 
         self.model_name = model_name
@@ -41,4 +42,4 @@ class LocalEmbedder:
             show_progress_bar=False,
             convert_to_numpy=True,
         )
-        return vecs.tolist()
+        return cast("list[list[float]]", vecs.tolist())

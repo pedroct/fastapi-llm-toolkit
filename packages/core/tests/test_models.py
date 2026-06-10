@@ -1,18 +1,20 @@
 """Testes para fastapi_kb_core.models — Chunk e make_id."""
 
+from typing import Any
+
 from fastapi_kb_core.models import Chunk, make_id
 
 
 def _chunk(**kwargs: object) -> Chunk:
-    defaults: dict = dict(
-        id="abc123",
-        text="texto de exemplo",
-        url="https://fastapi.tiangolo.com/reference/fastapi/",
-        page_title="FastAPI",
-        symbol=None,
-        member=None,
-        kind="page_intro",
-    )
+    defaults: dict[str, Any] = {
+        "id": "abc123",
+        "text": "texto de exemplo",
+        "url": "https://fastapi.tiangolo.com/reference/fastapi/",
+        "page_title": "FastAPI",
+        "symbol": None,
+        "member": None,
+        "kind": "page_intro",
+    }
     return Chunk(**{**defaults, **kwargs})
 
 
@@ -22,7 +24,7 @@ class TestMakeId:
         assert len(result) == 16
         assert all(c in "0123456789abcdef" for c in result)
 
-    def test_determinístico(self) -> None:
+    def test_deterministico(self) -> None:
         a = make_id("http://example.com", "Symbol", "method")
         b = make_id("http://example.com", "Symbol", "method")
         assert a == b
@@ -75,10 +77,25 @@ class TestChunkToDict:
         assert isinstance(_chunk().to_dict(), dict)
 
     def test_contem_todos_os_campos(self) -> None:
-        d = _chunk(symbol="fastapi.FastAPI", member="add_route", version="0.115.x").to_dict()
-        for field in ("id", "text", "url", "page_title", "symbol", "member", "kind",
-                      "badges", "grouped_members", "parent_member", "param_names",
-                      "priority", "version", "token_estimate"):
+        d = _chunk(
+            symbol="fastapi.FastAPI", member="add_route", version="0.115.x"
+        ).to_dict()
+        for field in (
+            "id",
+            "text",
+            "url",
+            "page_title",
+            "symbol",
+            "member",
+            "kind",
+            "badges",
+            "grouped_members",
+            "parent_member",
+            "param_names",
+            "priority",
+            "version",
+            "token_estimate",
+        ):
             assert field in d
 
     def test_valores_preservados(self) -> None:

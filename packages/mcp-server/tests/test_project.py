@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -43,10 +44,12 @@ _SPEC = {
 # load_openapi — caminho local
 # ---------------------------------------------------------------------------
 
+
 class TestLoadOpenapiLocal:
     def test_carrega_json_local(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", encoding="utf-8", delete=False
+        ) as f:
             json.dump(_SPEC, f)
             path = f.name
         try:
@@ -56,8 +59,9 @@ class TestLoadOpenapiLocal:
             os.unlink(path)
 
     def test_retorna_dict(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", encoding="utf-8", delete=False
+        ) as f:
             json.dump(_SPEC, f)
             path = f.name
         try:
@@ -66,8 +70,9 @@ class TestLoadOpenapiLocal:
             os.unlink(path)
 
     def test_campos_preservados(self) -> None:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
-                                         encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", encoding="utf-8", delete=False
+        ) as f:
             json.dump(_SPEC, f)
             path = f.name
         try:
@@ -86,16 +91,16 @@ class TestLoadOpenapiLocal:
 # load_openapi — URL HTTP (mock)
 # ---------------------------------------------------------------------------
 
+
 class TestLoadOpenapiHttp:
-    def _mock_response(self, data: dict) -> MagicMock:
+    def _mock_response(self, data: dict[str, Any]) -> MagicMock:
         resp = MagicMock()
         resp.json.return_value = data
         resp.raise_for_status.return_value = None
         return resp
 
     def test_chama_requests_get(self) -> None:
-        with patch("requests.get",
-                   return_value=self._mock_response(_SPEC)) as mock_get:
+        with patch("requests.get", return_value=self._mock_response(_SPEC)) as mock_get:
             load_openapi("http://localhost:8000/openapi.json")
             mock_get.assert_called_once_with(
                 "http://localhost:8000/openapi.json", timeout=15
@@ -113,8 +118,7 @@ class TestLoadOpenapiHttp:
             mock_resp.raise_for_status.assert_called_once()
 
     def test_http_sem_s_tambem_funciona(self) -> None:
-        with patch("requests.get",
-                   return_value=self._mock_response(_SPEC)) as mock_get:
+        with patch("requests.get", return_value=self._mock_response(_SPEC)) as mock_get:
             load_openapi("http://localhost:8000/openapi.json")
             assert mock_get.called
 
@@ -122,6 +126,7 @@ class TestLoadOpenapiHttp:
 # ---------------------------------------------------------------------------
 # summarize_openapi
 # ---------------------------------------------------------------------------
+
 
 class TestSummarizeOpenapi:
     def test_retorna_dict(self) -> None:

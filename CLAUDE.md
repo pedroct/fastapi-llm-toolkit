@@ -296,6 +296,23 @@ Os 4 hotspots do scan inicial foram marcados como **SAFE** com justificativa:
 | `project.py` | S5332 HTTP | `startswith("http://", ...)` é roteamento, não conexão forçada; HTTP aceito para localhost em dev |
 | `models.py` | S4790 Hash | SHA-1 usado para content addressing de chunks (IDs determinísticos), não para criptografia |
 
+### Vulnerabilidades de dependências aceitas (pip-audit) — A CORRIGIR
+
+O passo `pip-audit` do CI ignora 8 vulnerabilidades em deps **transitivas** que
+hoje não têm correção aplicável sem quebrar a resolução ou a API. Os
+`--ignore-vuln` ficam em `.github/workflows/ci.yml` com este racional. **Revisar
+periodicamente** e remover o ignore assim que a condição de desbloqueio ocorrer.
+
+| Pacote | Versão | IDs | Fix disponível | Por que está ignorada | Condição p/ corrigir |
+|--------|--------|-----|----------------|-----------------------|----------------------|
+| `pyjwt` | 2.12.1 | PYSEC-2026-175/177/178/179 | 2.13.0 | Preso por `mcp[crypto]` e `semgrep[crypto]`; `semgrep` é dev-only (não vai na imagem de produção, que usa `--no-dev`) | Quando `mcp`/`semgrep` permitirem `pyjwt>=2.13.0` |
+| `fastmcp` | 2.14.0 | CVE-2025-69196 | 2.14.2 | `fastmcp>=2.14.2` exige `mcp>=1.24.0` → **conflito de resolução** no workspace ("No solution found") | Quando o conflito com `mcp>=1.24` for resolvido |
+| `fastmcp` | 2.14.0 | CVE-2025-64340, CVE-2026-27124 | 3.2.0 | Fix só no **major 3.2.0**, que quebra API (ver §10 — fastmcp muda API entre versões) | Migração planejada para fastmcp 3.x + revalidar as 4 tools |
+| `diskcache` | 5.6.3 | CVE-2025-69872 | — | **Sem versão de correção** upstream | Quando upstream publicar patch |
+
+> Ao mexer aqui, rode `uv run pip-audit` sem os ignores para reconferir a lista
+> atual de IDs (advisories novos podem surgir) e atualize a flag no `ci.yml`.
+
 ---
 
 ## 13. Infra de deploy — VPS + GitHub Actions

@@ -1,15 +1,28 @@
 """fastapi_kb_rag — ingestão, indexação e recuperação da base de conhecimento."""
 
-from .ingest import process_dir, coalesce_small_members, write_jsonl
-from .collect import collect, save_page, fetch_via_requests
+from .collect import collect, fetch_via_requests, save_page
 from .embedder import Embedder, LocalEmbedder
 from .index import (
-    VectorIndex, QdrantIndex, RetrievalResult, build_embedding_text, load_chunks,
+    QdrantIndex,
+    RetrievalResult,
+    VectorIndex,
+    build_embedding_text,
+    load_chunks,
 )
+from .ingest import coalesce_small_members, process_dir, write_jsonl
 
 __all__ = [
-    "process_dir", "coalesce_small_members", "write_jsonl",
-    "collect", "save_page", "fetch_via_requests",
-    "Embedder", "LocalEmbedder",
-    "VectorIndex", "QdrantIndex", "RetrievalResult", "build_embedding_text", "load_chunks",
+    "Embedder",
+    "LocalEmbedder",
+    "QdrantIndex",
+    "RetrievalResult",
+    "VectorIndex",
+    "build_embedding_text",
+    "coalesce_small_members",
+    "collect",
+    "fetch_via_requests",
+    "load_chunks",
+    "process_dir",
+    "save_page",
+    "write_jsonl",
 ]

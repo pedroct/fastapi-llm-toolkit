@@ -16,9 +16,9 @@ Uso CLI (no WSL):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import os
 import time
-from typing import Callable
 
 from fastapi_kb_core import REFERENCE_URLS, url_to_slug
 
@@ -35,8 +35,18 @@ def _extract_content_html(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
     # Remover ruído estrutural que às vezes vaza para dentro do main.
-    for sel in ["nav", "header", "footer", "aside", "script", "style",
-                ".md-sidebar", ".md-header", ".md-footer", ".md-nav"]:
+    for sel in [
+        "nav",
+        "header",
+        "footer",
+        "aside",
+        "script",
+        "style",
+        ".md-sidebar",
+        ".md-header",
+        ".md-footer",
+        ".md-nav",
+    ]:
         for el in soup.select(sel):
             el.decompose()
 
@@ -47,6 +57,7 @@ def _extract_content_html(html: str) -> str:
 
 def _html_to_markdown(html_fragment: str) -> str:
     from markdownify import markdownify as md
+
     text = md(html_fragment, heading_style="ATX", code_language="python")
     # Compactar linhas em branco excessivas geradas pela conversão.
     lines, out, blanks = text.splitlines(), [], 0
@@ -91,7 +102,9 @@ def collect(
         path = save_page(raw_dir, url, md)
         saved.append(path)
         if verbose:
-            print(f"[{i:2}/{len(REFERENCE_URLS)}] {os.path.basename(path):28} ({len(md):>6} chars)")
+            print(
+                f"[{i:2}/{len(REFERENCE_URLS)}] {os.path.basename(path):28} ({len(md):>6} chars)"
+            )
         time.sleep(delay)  # cortesia com o servidor
     return saved
 
@@ -99,7 +112,9 @@ def collect(
 def main() -> None:
     import argparse
 
-    ap = argparse.ArgumentParser(description="Coleta /reference/* do FastAPI -> docs/raw")
+    ap = argparse.ArgumentParser(
+        description="Coleta /reference/* do FastAPI -> docs/raw"
+    )
     ap.add_argument("--out", default="docs/raw", help="diretório de saída")
     ap.add_argument("--delay", type=float, default=0.5, help="pausa entre requests (s)")
     ap.add_argument("--list", action="store_true", help="só lista as URLs e sai")

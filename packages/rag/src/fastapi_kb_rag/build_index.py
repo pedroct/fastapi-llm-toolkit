@@ -25,10 +25,16 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Indexa/consulta a base FastAPI no Qdrant")
     ap.add_argument("--chunks", default="output/chunks.jsonl")
     ap.add_argument("--collection", default="fastapi_reference")
-    ap.add_argument("--url", default=None, help="URL do Qdrant (ex.: http://localhost:6333)")
-    ap.add_argument("--path", default=None, help="dir p/ Qdrant embarcado (ex.: .qdrant)")
+    ap.add_argument(
+        "--url", default=None, help="URL do Qdrant (ex.: http://localhost:6333)"
+    )
+    ap.add_argument(
+        "--path", default=None, help="dir p/ Qdrant embarcado (ex.: .qdrant)"
+    )
     ap.add_argument("--model", default="BAAI/bge-small-en-v1.5")
-    ap.add_argument("--recreate", action="store_true", help="recria a collection do zero")
+    ap.add_argument(
+        "--recreate", action="store_true", help="recria a collection do zero"
+    )
     ap.add_argument("--query", default=None, help="se setado, só consulta (não indexa)")
     ap.add_argument("--version", default="0.115.x", help="filtro de versão na consulta")
     ap.add_argument("-k", type=int, default=5)

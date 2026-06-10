@@ -1,6 +1,6 @@
 """Testes para fastapi_kb_core.chunker — todas as funções públicas e auxiliares."""
 
-import pytest
+from typing import Any
 
 from fastapi_kb_core.chunker import (
     _clean_heading,
@@ -48,6 +48,7 @@ Conteúdo B.
 # ---------------------------------------------------------------------------
 # Funções auxiliares internas
 # ---------------------------------------------------------------------------
+
 
 class TestStripToContent:
     def test_remove_conteudo_antes_do_h1(self) -> None:
@@ -109,6 +110,7 @@ class TestCleanHeading:
 # chunk_reference_page
 # ---------------------------------------------------------------------------
 
+
 class TestChunkReferencePage:
     def test_retorna_lista_de_chunks(self) -> None:
         result = chunk_reference_page(PAGINA_SIMPLES, URL)
@@ -140,11 +142,15 @@ class TestChunkReferencePage:
             assert c.version == "unknown"
 
     def test_nome_do_simbolo_correto(self) -> None:
-        symbols = [c.symbol for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.symbol]
+        symbols = [
+            c.symbol for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.symbol
+        ]
         assert any("fastapi.FastAPI" in s for s in symbols)
 
     def test_nomes_dos_members_corretos(self) -> None:
-        members = [c.member for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.member]
+        members = [
+            c.member for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.member
+        ]
         assert "add_api_route" in members
         assert "include_router" in members
 
@@ -161,7 +167,9 @@ class TestChunkReferencePage:
             assert URL in c.url or c.url.startswith(URL)
 
     def test_member_url_tem_ancora(self) -> None:
-        members = [c for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.kind == "member"]
+        members = [
+            c for c in chunk_reference_page(PAGINA_SIMPLES, URL) if c.kind == "member"
+        ]
         for m in members:
             assert "#" in m.url
 
@@ -170,8 +178,11 @@ class TestChunkReferencePage:
             assert c.token_estimate >= 0
 
     def test_dois_simbolos(self) -> None:
-        symbols = [c for c in chunk_reference_page(PAGINA_COM_DOIS_SIMBOLOS, URL)
-                   if c.kind == "symbol"]
+        symbols = [
+            c
+            for c in chunk_reference_page(PAGINA_COM_DOIS_SIMBOLOS, URL)
+            if c.kind == "symbol"
+        ]
         assert len(symbols) == 2
 
     def test_sem_h2_apenas_intro(self) -> None:
@@ -259,7 +270,8 @@ class TestChunkReferencePage:
 # split_source_code
 # ---------------------------------------------------------------------------
 
-def _dict_chunk(text: str, **kwargs: object) -> dict:
+
+def _dict_chunk(text: str, **kwargs: object) -> dict[str, Any]:
     return {
         "id": kwargs.get("id", "abc"),
         "text": text,
@@ -346,6 +358,7 @@ class TestSplitSourceCode:
 # _extract_param_table
 # ---------------------------------------------------------------------------
 
+
 class TestExtractParamTable:
     def test_sem_tabela_params_vazio(self) -> None:
         _, params = _extract_param_table("Apenas conteúdo sem tabela.")
@@ -390,11 +403,7 @@ class TestExtractParamTable:
         assert params[0][0] == "my_param"
 
     def test_linha_separadora_na_head(self) -> None:
-        text = (
-            "| PARAMETER | DESCRIPTION |\n"
-            "| --- | --- |\n"
-            "| `p` | val |\n"
-        )
+        text = "| PARAMETER | DESCRIPTION |\n| --- | --- |\n| `p` | val |\n"
         head, _ = _extract_param_table(text)
         assert "| --- |" in head
 
@@ -403,15 +412,15 @@ class TestExtractParamTable:
 # split_large_param_chunks
 # ---------------------------------------------------------------------------
 
-def _param_chunk(n_params: int = 8, token_estimate: int = 2000,
-                 member: str = "method", symbol: str = "fastapi.FastAPI") -> dict:
+
+def _param_chunk(
+    n_params: int = 8,
+    token_estimate: int = 2000,
+    member: str = "method",
+    symbol: str = "fastapi.FastAPI",
+) -> dict[str, Any]:
     rows = "\n".join(f"| `param{i}` | Descrição {i} |" for i in range(n_params))
-    text = (
-        f"## {member}\n\n"
-        "| PARAMETER | DESCRIPTION |\n"
-        "| --- | --- |\n"
-        f"{rows}"
-    )
+    text = f"## {member}\n\n| PARAMETER | DESCRIPTION |\n| --- | --- |\n{rows}"
     return {
         "id": "abc",
         "text": text,
@@ -444,26 +453,34 @@ class TestSplitLargeParamChunks:
 
     def test_divide_chunk_grande_com_tabela(self) -> None:
         chunk = _param_chunk(n_params=8, token_estimate=2000)
-        result = split_large_param_chunks([chunk], max_tokens=100, params_per_subchunk=4)
+        result = split_large_param_chunks(
+            [chunk], max_tokens=100, params_per_subchunk=4
+        )
         # 1 head + 2 param_group
         assert len(result) == 3
 
     def test_param_group_kind(self) -> None:
         chunk = _param_chunk(n_params=4, token_estimate=2000)
-        result = split_large_param_chunks([chunk], max_tokens=100, params_per_subchunk=4)
+        result = split_large_param_chunks(
+            [chunk], max_tokens=100, params_per_subchunk=4
+        )
         kinds = [c["kind"] for c in result]
         assert "param_group" in kinds
 
     def test_param_group_tem_param_names(self) -> None:
         chunk = _param_chunk(n_params=4, token_estimate=2000)
-        result = split_large_param_chunks([chunk], max_tokens=100, params_per_subchunk=4)
+        result = split_large_param_chunks(
+            [chunk], max_tokens=100, params_per_subchunk=4
+        )
         groups = [c for c in result if c["kind"] == "param_group"]
         assert groups[0]["param_names"] is not None
         assert len(groups[0]["param_names"]) == 4
 
     def test_ids_unicos(self) -> None:
         chunk = _param_chunk(n_params=8, token_estimate=2000)
-        result = split_large_param_chunks([chunk], max_tokens=100, params_per_subchunk=4)
+        result = split_large_param_chunks(
+            [chunk], max_tokens=100, params_per_subchunk=4
+        )
         ids = [c["id"] for c in result]
         assert len(ids) == len(set(ids))
 
