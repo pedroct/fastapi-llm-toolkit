@@ -443,28 +443,23 @@ curl -sL -X POST http://localhost:8000/mcp/ \
 > no `uv.lock` é **1.18.0** → servidor fixado em `qdrant/qdrant:v1.18.0`. Ao
 > bumpar o `qdrant-client`, suba a imagem junto e **recrie o volume**.
 
-### Setup inicial no VPS (executar uma vez)
+### Setup inicial no VPS (já validado — auto-seed)
 
-> ⚠️ **PENDENTE — ainda não validado no VPS.** O `.dockerignore` exclui
-> `docs/raw/` **e** `output/` da imagem, então o `chunks.jsonl` **não viaja**
-> no container. Antes de indexar no VPS é preciso resolver de onde vêm os dados.
-> Duas opções:
-> 1. **Remover `docs/raw/` e `output/` do `.dockerignore`** para empacotar os
->    `chunks.jsonl` na imagem (simples; engorda a imagem ~1.4 MB + docs).
-> 2. **Copiar o `chunks.jsonl` para o VPS** via `scp` e montá-lo num volume.
->
-> Em qualquer caso, a indexação usa **`--url`** (mesma armadilha do dev — `--path`
-> NÃO conversa com o servidor Qdrant que já está rodando):
+O `chunks.jsonl` é **gerado dentro da imagem** no build (Dockerfile copia
+`docs/raw/` e roda o ingest). O serviço `indexer` executa `build_index` a cada
+`docker compose up` e é idempotente (IDs uuid5 determinísticos). Nenhum passo
+manual é necessário além de subir a stack.
 
 ```bash
 ssh unio-vps
 cd /home/deploy/fastapi-llm-toolkit
-
-# (após garantir que output/chunks.jsonl está acessível ao container)
-docker compose run --rm mcp-server \
-  uv run python -m fastapi_kb_rag.build_index \
-    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
+# O deploy CI já roda este comando automaticamente:
+docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
 ```
+
+O overlay `docker-compose.gateway.yml` conecta o `mcp-server` à
+`shared_gateway_network` com alias `fastapi-kb`, expondo-o via nginx em
+`https://mcp.pedroct.com.br/fastapi-llm-toolkit`.
 
 ---
 
@@ -482,8 +477,12 @@ docker compose run --rm mcp-server \
   tools confirmadas via HTTP streamable (`search_reference` retornando
   `fastapi.APIRouter.get` com score ~0.76 para "how to add a GET route").
   Dashboard do Qdrant acessível em dev. Ver §13 → "Docker local".
+- **VPS (VALIDADO):** imagem com auto-seed (870 chunks embutidos); stack
+  `mcp-server` + `qdrant:v1.18.0` + `indexer` deployada via CI; as 4 tools
+  confirmadas via `https://mcp.pedroct.com.br/fastapi-llm-toolkit` (HTTPS com
+  cert curinga `*.pedroct.com.br`). Nginx configurado em
+  `/home/ubuntu/gateway/nginx/conf.d/mcp.conf`. Deploy automático: push em
+  `main` → CI verde → build GHCR → SSH pull + `docker compose … up -d`.
 - **NÃO testado:** o servidor rodando sob o Claude Desktop real (ambiente do
   usuário). Esse é um passo de verificação no WSL.
-- **PENDENTE no VPS:** o `chunks.jsonl` não está na imagem (`.dockerignore`); o
-  setup de índice no VPS precisa ser resolvido antes do primeiro deploy (ver §13).
 - **Limitação conhecida:** retrieval de termos literais (ver backlog item 1).

@@ -21,17 +21,13 @@ ar, no `.mcp.json` do seu repositório.
 
 ### 1.1. Endpoint (VPS compartilhado)
 
-O estado-alvo é um servidor único deployado no VPS, que todos os projetos
-consomem:
+O servidor está no ar e acessível via HTTPS:
 
 ```
-http://92.112.178.252:8000/mcp
+https://mcp.pedroct.com.br/fastapi-llm-toolkit
 ```
 
-> ⚠️ **PENDENTE — o deploy do VPS ainda não está no ar.** Hoje a porta 8000 do
-> VPS não responde (o índice ainda não foi construído lá; ver `CLAUDE.md` §12 e
-> §13). Enquanto o deploy não sobe, use o **Docker local** como endpoint
-> (§1.4) apontando para `http://localhost:8000/mcp`.
+TLS terminado no nginx do VPS com certificado Origin do Cloudflare (`*.pedroct.com.br`).
 
 ### 1.2. Registrar no `.mcp.json` do seu projeto
 
@@ -42,7 +38,7 @@ Na raiz do seu repositório, crie (ou edite) `.mcp.json`:
   "mcpServers": {
     "fastapi-kb": {
       "type": "http",
-      "url": "http://92.112.178.252:8000/mcp"
+      "url": "https://mcp.pedroct.com.br/fastapi-llm-toolkit"
     }
   }
 }
@@ -57,34 +53,30 @@ Servidores do `.mcp.json` de projeto exigem aprovação na primeira sessão:
 
 ```bash
 claude            # abra o Claude Code na pasta do seu projeto e aprove o servidor
-claude mcp list   # deve mostrar: fastapi-kb: http://.../mcp (HTTP) - conectado
+claude mcp list   # deve mostrar: fastapi-kb: https://mcp.pedroct.com.br/... (HTTP) - conectado
 ```
 
-Sanidade direta (sem o Claude Code) — o `initialize` deve devolver
-`serverInfo.name = "fastapi-kb"`:
+Sanidade direta (sem o Claude Code):
 
 ```bash
-curl -siL -X POST http://92.112.178.252:8000/mcp/ \
+SESSION=$(curl -siLD - -X POST https://mcp.pedroct.com.br/fastapi-llm-toolkit \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}' \
-  | grep -i serverInfo
+  | grep -i mcp-session-id | head -1 | awk '{print $2}' | tr -d '\r')
+echo "session: $SESSION"   # deve imprimir um UUID não-vazio
 ```
 
-### 1.4. Alternativa enquanto o VPS não sobe — Docker local
+### 1.4. Alternativa — Docker local
 
-Clone o toolkit, suba a stack e aponte o seu `.mcp.json` para `localhost`:
+Caso prefira rodar o toolkit localmente (desenvolvimento ou offline):
 
 ```bash
 git clone <repo-do-toolkit> && cd fastapi-llm-toolkit
-docker compose build && docker compose up -d qdrant
-docker compose run --rm mcp-server \
-  uv run python -m fastapi_kb_rag.build_index \
-    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
-docker compose up -d                         # MCP em http://localhost:8000/mcp
+docker compose up -d          # auto-seed: indexer semeia o Qdrant automaticamente
 ```
 
-No `.mcp.json` do seu projeto, troque a URL por `http://localhost:8000/mcp`.
+No `.mcp.json` do seu projeto, use `http://localhost:8000/mcp`.
 Detalhes e armadilhas: `packages/mcp-server/README.md` e `CLAUDE.md` §13.
 
 ### 1.5. As tools disponíveis
