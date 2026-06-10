@@ -22,6 +22,8 @@ RUN uv sync --no-dev --frozen
 ENV FASTAPI_KB_QDRANT_URL=http://qdrant:6333
 ENV MCP_TRANSPORT=streamable-http
 ENV PORT=8000
+# Evita que `uv run` resincronize o venv (reinstalaria deps dev do workspace raiz)
+ENV UV_NO_SYNC=1
 
 EXPOSE 8000
 

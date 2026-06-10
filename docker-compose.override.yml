@@ -1,0 +1,10 @@
+# Sobrescreve docker-compose.yml para desenvolvimento local.
+# Aplicado automaticamente por `docker compose` — sem flags extras.
+# Produção usa docker-compose.yml sozinho (sem este arquivo).
+services:
+  mcp-server:
+    build: .
+    image: fastapi-llm-toolkit:local
+    volumes:
+      - model_cache:/root/.cache/huggingface
+      - ./output:/app/output   # acessa chunks.jsonl para build_index
