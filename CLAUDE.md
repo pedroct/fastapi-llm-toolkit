@@ -335,25 +335,92 @@ O job `deploy` usa o environment **production** do GitHub com:
 
 ### Stack no VPS (docker-compose.yml)
 
-Dois serviços: `mcp-server` (imagem GHCR) + `qdrant:v1.12.6`. Volumes persistentes:
+Dois serviços: `mcp-server` (imagem GHCR) + `qdrant:v1.18.0`. Volumes persistentes:
 - `qdrant_data` — índice vetorial
 - `model_cache` — modelo de embedding (`BAAI/bge-small-en-v1.5`, ~130 MB, baixa uma vez)
 
+O `mcp-server` sobe com `MCP_TRANSPORT=streamable-http` e expõe o protocolo MCP
+em `http://0.0.0.0:8000/mcp` (não é UI web — é endpoint JSON-RPC/SSE para clientes
+MCP). Em produção **só** a porta 8000 do `mcp-server` é publicada; o Qdrant fica
+acessível apenas na rede interna do compose (sem dashboard exposto).
+
+### Docker local — desenvolvimento e testes (VALIDADO)
+
+O `docker-compose.override.yml` (aplicado automaticamente, **não vai para o VPS**)
+adapta a stack para dev: build local em vez da imagem GHCR, monta `./output` para
+o `build_index` ler o `chunks.jsonl`, e publica `6333:6333` para o dashboard do
+Qdrant.
+
+Setup completo, do zero, já validado end-to-end:
+
+```bash
+docker compose build                       # imagem fastapi-llm-toolkit:local
+docker compose up -d qdrant                # sobe só o Qdrant primeiro
+
+# indexa os 870 chunks NO SERVIDOR Qdrant (--url, NÃO --path; ver armadilhas)
+docker compose run --rm mcp-server \
+  uv run python -m fastapi_kb_rag.build_index \
+    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
+
+docker compose up -d                       # sobe o mcp-server
+```
+
+Dashboard do Qdrant (só em dev): **http://localhost:6333/dashboard** — inspeciona
+a collection `fastapi_reference`, payloads e buscas.
+
+Teste do MCP via HTTP (handshake com sessão obrigatório):
+
+```bash
+# 1. initialize -> captura o header mcp-session-id
+SESSION=$(curl -siL -X POST http://localhost:8000/mcp/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}' \
+  | grep -i mcp-session-id | awk '{print $2}' | tr -d '\r')
+
+# 2. chama uma tool reusando o SESSION no header Mcp-Session-Id
+curl -sL -X POST http://localhost:8000/mcp/ \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Mcp-Session-Id: $SESSION" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"search_reference","arguments":{"query":"how to add a GET route","version":"0.115.x","k":3}}}'
+```
+
+#### Armadilhas resolvidas (NÃO reintroduzir)
+
+| Sintoma | Causa | Correção |
+|---------|-------|----------|
+| `uv run` reinstala semgrep/mypy (~80 MB) a cada chamada | `uv run` resincroniza o venv incluindo o grupo `dev` do workspace | `ENV UV_NO_SYNC=1` no Dockerfile |
+| Healthcheck do Qdrant sempre `unhealthy` | a imagem `qdrant/qdrant` **não tem** `curl` nem `wget` | TCP check nativo do bash: `bash -c '</dev/tcp/localhost/6333'` |
+| Tool retorna `Collection 'fastapi_reference' doesn't exist` | `build_index` sem `--url` cai no modo `:memory:` e perde tudo ao sair do container | sempre `--url http://qdrant:6333` (o CLI **ignora** as env vars `FASTAPI_KB_*`) |
+| Qdrant em crash loop após bump de versão (`unknown variant on_disk`) | formato de dados da v1.12.6 incompatível com a v1.18.0 | apagar o volume (`docker volume rm fastapi-llm-toolkit_qdrant_data`) e reindexar |
+| `Not Acceptable` / `Missing session ID` no curl ao MCP | streamable-http exige `Accept: application/json, text/event-stream` e handshake `initialize` antes de qualquer tool | ver o fluxo de 2 passos acima |
+
+> **Versão do Qdrant:** servidor e client devem casar (minor diff ≤ 1). O client
+> no `uv.lock` é **1.18.0** → servidor fixado em `qdrant/qdrant:v1.18.0`. Ao
+> bumpar o `qdrant-client`, suba a imagem junto e **recrie o volume**.
+
 ### Setup inicial no VPS (executar uma vez)
 
-Após o primeiro deploy da imagem:
+> ⚠️ **PENDENTE — ainda não validado no VPS.** O `.dockerignore` exclui
+> `docs/raw/` **e** `output/` da imagem, então o `chunks.jsonl` **não viaja**
+> no container. Antes de indexar no VPS é preciso resolver de onde vêm os dados.
+> Duas opções:
+> 1. **Remover `docs/raw/` e `output/` do `.dockerignore`** para empacotar os
+>    `chunks.jsonl` na imagem (simples; engorda a imagem ~1.4 MB + docs).
+> 2. **Copiar o `chunks.jsonl` para o VPS** via `scp` e montá-lo num volume.
+>
+> Em qualquer caso, a indexação usa **`--url`** (mesma armadilha do dev — `--path`
+> NÃO conversa com o servidor Qdrant que já está rodando):
 
 ```bash
 ssh unio-vps
 cd /home/deploy/fastapi-llm-toolkit
 
-# construir o índice Qdrant a partir dos docs já presentes na imagem
-docker compose run --rm mcp-server \
-  uv run python -m fastapi_kb_rag.ingest --from-dir docs/raw --version 0.115.x
-
+# (após garantir que output/chunks.jsonl está acessível ao container)
 docker compose run --rm mcp-server \
   uv run python -m fastapi_kb_rag.build_index \
-    --chunks output/chunks.jsonl --path /qdrant/storage --recreate
+    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
 ```
 
 ---
@@ -367,6 +434,13 @@ docker compose run --rm mcp-server \
 - **End-to-end:** coleta real das 22 páginas, ingestão (870 chunks), indexação
   no Qdrant, retrieval com filtros, e as 4 tools do MCP via cliente em-processo
   do FastMCP.
+- **Docker local (VALIDADO):** stack `mcp-server` + `qdrant:v1.18.0` sobe via
+  `docker compose`, índice reconstruído (870 chunks) no servidor Qdrant, e as 4
+  tools confirmadas via HTTP streamable (`search_reference` retornando
+  `fastapi.APIRouter.get` com score ~0.76 para "how to add a GET route").
+  Dashboard do Qdrant acessível em dev. Ver §13 → "Docker local".
 - **NÃO testado:** o servidor rodando sob o Claude Desktop real (ambiente do
   usuário). Esse é um passo de verificação no WSL.
+- **PENDENTE no VPS:** o `chunks.jsonl` não está na imagem (`.dockerignore`); o
+  setup de índice no VPS precisa ser resolvido antes do primeiro deploy (ver §13).
 - **Limitação conhecida:** retrieval de termos literais (ver backlog item 1).

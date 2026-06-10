@@ -8,3 +8,7 @@ services:
     volumes:
       - model_cache:/root/.cache/huggingface
       - ./output:/app/output   # acessa chunks.jsonl para build_index
+
+  qdrant:
+    ports:
+      - "6333:6333"   # expõe dashboard só em dev (http://localhost:6333/dashboard)
