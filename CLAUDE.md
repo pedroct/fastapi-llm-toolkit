@@ -368,7 +368,28 @@ docker compose up -d                       # sobe o mcp-server
 Dashboard do Qdrant (só em dev): **http://localhost:6333/dashboard** — inspeciona
 a collection `fastapi_reference`, payloads e buscas.
 
-Teste do MCP via HTTP (handshake com sessão obrigatório):
+#### Smoke test em Python (`scripts/validate_mcp.py`) — RECOMENDADO
+
+Cliente MCP de verdade (via `fastmcp.Client`) que conecta no streamable-http e
+exercita as 4 tools, com 6 checagens e exit code != 0 em falha. O script está
+embutido na imagem (Dockerfile copia `scripts/`), então roda sem mount:
+
+```bash
+docker compose run --rm --no-deps mcp-server uv run python scripts/validate_mcp.py
+```
+
+Saída esperada: `SUCESSO: todas as checagens passaram.` (`search_reference`
+para "how to add a GET route" traz `fastapi.APIRouter.get` no topo, score ~0.76).
+
+Aponta para `http://mcp-server:8000/mcp` por padrão (hostname do serviço na rede
+do compose); sobrescreva com `MCP_URL=http://localhost:8000/mcp` para rodar do host.
+
+**Detalhe da API do fastmcp 2.x:** tools que retornam listas chegam embrulhadas
+em `result.structured_content["result"]` (dicts JSON puros). O `result.data`
+desserializa cada item num modelo pydantic acessado por atributo — por isso o
+script usa `structured_content`. Ver o helper `_data()`.
+
+#### Teste manual via curl (handshake com sessão obrigatório)
 
 ```bash
 # 1. initialize -> captura o header mcp-session-id

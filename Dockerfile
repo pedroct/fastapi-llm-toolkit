@@ -15,6 +15,7 @@ RUN uv sync --no-dev --frozen --no-install-workspace
 
 # Copia o código-fonte dos pacotes
 COPY packages/ packages/
+COPY scripts/ scripts/
 
 # Instala os pacotes do workspace
 RUN uv sync --no-dev --frozen
