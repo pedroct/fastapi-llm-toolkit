@@ -5,7 +5,10 @@ __pycache__/
 .qdrant/
 qdrant_storage/
 output/
-docs/raw/
+# docs/raw/ NÃO é ignorado: o build roda o ingest sobre ele para gerar o
+# chunks.jsonl dentro da imagem (auto-seed). output/ permanece ignorado pois é
+# regenerado no próprio build. ('*.md' abaixo não pega docs/raw/*.md — o '*'
+# do .dockerignore não cruza '/'.)
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
