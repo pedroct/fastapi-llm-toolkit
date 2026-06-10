@@ -1,0 +1,29 @@
+services:
+  mcp-server:
+    image: ghcr.io/pedroct/fastapi-llm-toolkit:latest
+    ports:
+      - "8000:8000"
+    environment:
+      MCP_TRANSPORT: streamable-http
+      FASTAPI_KB_QDRANT_URL: http://qdrant:6333
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.6
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  model_cache:

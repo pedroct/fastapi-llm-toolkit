@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+output/*.jsonl
+.venv/
+.qdrant/
+qdrant_storage/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+coverage.xml
+.scannerwork/
+.sonar/
+.mcp.json

@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  ci:
+    name: Lint, type check, audit, test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Instalar dependências
+        run: uv sync --frozen
+
+      - name: Lint (ruff check)
+        run: uv run ruff check packages/
+
+      - name: Format check (ruff format)
+        run: uv run ruff format --check packages/
+
+      - name: Type check (mypy)
+        run: uv run mypy packages/
+
+      - name: Auditoria de dependências (pip-audit)
+        run: uv run pip-audit
+
+      - name: Testes (pytest + cobertura)
+        run: uv run pytest
+
+      - name: Upload coverage para Actions
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 7

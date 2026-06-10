@@ -1,0 +1,190 @@
+# Workspace raiz do monorepo. Cada pacote em packages/ tem seu próprio pyproject.
+# Instalação: uv sync  (instala pacotes + grupo dev automaticamente)
+[tool.uv.workspace]
+members = ["packages/core", "packages/rag", "packages/mcp-server"]
+
+[dependency-groups]
+dev = [
+    "bandit==1.9.4",
+    "commitizen==4.16.2",
+    "mypy>=2.1.0",
+    "pip-audit>=2.10.0",
+    "pre-commit>=4.6.0",
+    "pylint>=3.3.0",
+    "pysonar>=1.6.0.4905",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.15.14",
+    "semgrep>=1.165.0",
+]
+
+# ---------------------------------------------------------------------------
+# Mypy
+# ---------------------------------------------------------------------------
+
+[tool.mypy]
+python_version         = "3.12"
+strict                 = true
+warn_return_any        = true
+warn_unused_configs    = true
+warn_unused_ignores    = true
+warn_redundant_casts   = true
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module                = "tests.*"
+disallow_untyped_defs = false
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter (substitui flake8, isort e black)
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length    = 88
+target-version = "py312"
+src            = ["packages"]
+exclude        = [".venv", "__pycache__"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (imports não usados, variáveis não definidas)
+    "I",    # isort (ordem de imports)
+    "UP",   # pyupgrade (sintaxe moderna Python 3.12+)
+    "B",    # flake8-bugbear (bugs comuns)
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "N",    # pep8-naming
+    "PL",   # pylint — ~60% das regras do pylint via ruff (muito mais rápido)
+    "RUF",  # ruff-specific rules
+    "S",    # flake8-bandit (segurança — chaves hardcoded, SQL injection, etc.)
+    "ANN",  # flake8-annotations (type hints obrigatórios)
+]
+ignore = [
+    "E501",     # line-too-long — ruff format já trata
+    "ANN101",   # self sem anotação — desnecessário
+    "ANN102",   # cls sem anotação — desnecessário
+    "ANN401",   # Any permitido quando necessário
+    "PLR0913",  # too-many-arguments — funções de ingestão têm muitos parâmetros
+    "PLR2004",  # magic-value-comparison — aceitável em testes e status codes
+    "S101",     # assert — necessário em testes pytest
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["ANN", "S", "PLR"]   # testes têm regras menos rígidas
+
+[tool.ruff.lint.isort]
+known-first-party = ["fastapi_kb_core", "fastapi_kb_rag", "fastapi_kb_mcp"]
+force-sort-within-sections = true
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.format]
+quote-style               = "double"
+indent-style              = "space"
+line-ending               = "lf"
+skip-magic-trailing-comma = false
+
+# ---------------------------------------------------------------------------
+# Pylint — análise profunda (CI); ruff PL cobre ~60% no loop de commit
+# ---------------------------------------------------------------------------
+
+[tool.pylint.main]
+jobs         = 0
+py-version   = "3.12"
+recursive    = true
+ignore-paths = [".venv", "__pycache__"]
+
+[tool.pylint."messages control"]
+disable = [
+    # --- Cobertos pelo ruff (evita alertas duplicados) ---
+    "C0301",   # line-too-long           → ruff E501
+    "C0303",   # trailing-whitespace     → pre-commit
+    "C0304",   # missing-final-newline   → pre-commit
+    "C0411",   # wrong-import-order      → ruff I
+    "C0412",   # ungrouped-imports       → ruff I
+    "C0413",   # wrong-import-position   → ruff I
+    "W0611",   # unused-import           → ruff F401
+    "W0614",   # unused-wildcard-import  → ruff F403
+    "W0401",   # wildcard-import         → ruff F401
+    "W0622",   # redefined-builtin       → ruff A001
+    "W0621",   # redefined-outer-name    → ruff F811
+    "W0702",   # bare-except             → ruff B001
+    "W0703",   # broad-exception         → ruff B036
+    "E0401",   # import-error            → não confiável sem env completo
+    # --- Ruído geral ---
+    "R0903",   # too-few-public-methods
+    "R0801",   # duplicate-code
+    "C0114",   # missing-module-docstring
+    "C0115",   # missing-class-docstring
+    "C0116",   # missing-function-docstring
+]
+
+[tool.pylint.design]
+max-args       = 8
+max-attributes = 10
+max-branches   = 12
+max-returns    = 6
+max-statements = 50
+
+[tool.pylint.format]
+max-line-length = 88
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+
+[tool.pytest.ini_options]
+asyncio_mode     = "auto"
+testpaths        = ["packages"]
+python_files     = ["test_*.py"]
+python_classes   = ["Test*"]
+python_functions = ["test_*"]
+addopts          = "--cov --cov-report=term-missing --cov-report=xml"
+markers = [
+    "integration: requer Qdrant real",
+]
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+
+[tool.coverage.run]
+relative_files = true
+source         = ["fastapi_kb_core", "fastapi_kb_rag", "fastapi_kb_mcp"]
+branch         = true
+
+[tool.coverage.report]
+skip_empty = true
+
+# ---------------------------------------------------------------------------
+# Bandit — CI; ruff S cobre o essencial no pre-commit
+# ---------------------------------------------------------------------------
+
+[tool.bandit]
+targets      = ["packages"]
+exclude_dirs = [".venv", "__pycache__"]
+skips = [
+    "B101",  # assert — coberto por ruff S101; necessário em testes
+    "B104",  # bind-all-interfaces — falso positivo em config local
+]
+
+# ---------------------------------------------------------------------------
+# Commitizen — commits convencionais + versionamento semântico
+# ---------------------------------------------------------------------------
+
+[tool.commitizen]
+name                     = "cz_conventional_commits"
+version                  = "0.1.0"
+version_provider         = "commitizen"
+tag_format               = "v$version"
+update_changelog_on_bump = true
+changelog_file           = "CHANGELOG.md"
+version_files = [
+    "packages/core/pyproject.toml:version",
+    "packages/rag/pyproject.toml:version",
+    "packages/mcp-server/pyproject.toml:version",
+]
