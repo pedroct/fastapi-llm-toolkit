@@ -10,6 +10,8 @@ jobs:
   ci:
     name: Lint, type check, audit, test
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +55,10 @@ jobs:
             --ignore-vuln CVE-2026-27124 \
             --ignore-vuln CVE-2025-69872
 
+      # if: always() garante que pytest roda mesmo se lint/mypy/audit falhou,
+      # de forma que coverage.xml é sempre gerado para o upload abaixo.
       - name: Testes (pytest + cobertura)
+        if: always()
         run: uv run pytest
 
       - name: Upload coverage para Actions
@@ -62,4 +67,5 @@ jobs:
         with:
           name: coverage-xml
           path: coverage.xml
+          if-no-files-found: warn
           retention-days: 7
