@@ -61,6 +61,8 @@ jobs:
           script: |
             cd ${{ vars.VPS_DEPLOY_PATH }}
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose -f docker-compose.yml -f docker-compose.gateway.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d --remove-orphans
+            # Garante alias na shared_gateway_network após cada deploy (idempotente)
+            docker network connect --alias fastapi-kb shared_gateway_network fastapi-llm-toolkit-mcp-server-1 2>/dev/null || true
             docker image prune -f
