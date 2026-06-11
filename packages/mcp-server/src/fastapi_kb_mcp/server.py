@@ -67,13 +67,16 @@ class _FriendlyErrorMiddleware:
             await self.app(scope, receive, send)
             return
 
-        buffered_start: dict | None = None
+        buffered_start: dict[str, Any] | None = None
         buffer: list[bytes] = []
 
-        async def patched_send(message: dict) -> None:
+        async def patched_send(message: dict[str, Any]) -> None:
             nonlocal buffered_start
 
-            if message["type"] == "http.response.start" and message.get("status") == 406:
+            if (
+                message["type"] == "http.response.start"
+                and message.get("status") == 406
+            ):
                 buffered_start = message
                 return
 
@@ -88,7 +91,9 @@ class _FriendlyErrorMiddleware:
                     ]
                     headers.append((b"content-length", str(len(body)).encode()))
                     await send({**buffered_start, "headers": headers})
-                    await send({"type": "http.response.body", "body": body, "more_body": False})
+                    await send(
+                        {"type": "http.response.body", "body": body, "more_body": False}
+                    )
                 return
 
             await send(message)

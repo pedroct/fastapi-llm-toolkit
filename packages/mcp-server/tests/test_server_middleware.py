@@ -1,11 +1,13 @@
 """Testes para _FriendlyErrorMiddleware e _patch_error_body em server.py."""
 
 import json
+from typing import Any
 
-import pytest
-
-from fastapi_kb_mcp.server import _ACCEPT_ERRORS, _FriendlyErrorMiddleware, _patch_error_body
-
+from fastapi_kb_mcp.server import (
+    _ACCEPT_ERRORS,
+    _FriendlyErrorMiddleware,
+    _patch_error_body,
+)
 
 # ---------------------------------------------------------------------------
 # _patch_error_body — unitários puros
@@ -15,7 +17,9 @@ from fastapi_kb_mcp.server import _ACCEPT_ERRORS, _FriendlyErrorMiddleware, _pat
 class TestPatchErrorBody:
     def test_substitui_mensagem_conhecida(self) -> None:
         original = "Not Acceptable: Client must accept text/event-stream"
-        body = json.dumps({"jsonrpc": "2.0", "error": {"code": -32600, "message": original}}).encode()
+        body = json.dumps(
+            {"jsonrpc": "2.0", "error": {"code": -32600, "message": original}}
+        ).encode()
         result = json.loads(_patch_error_body(body))
         assert result["error"]["message"] == _ACCEPT_ERRORS[original]
 
@@ -43,11 +47,13 @@ class TestPatchErrorBody:
 
     def test_preserva_outros_campos_do_envelope(self) -> None:
         original = "Not Acceptable: Client must accept application/json"
-        body = json.dumps({
-            "jsonrpc": "2.0",
-            "id": "server-error",
-            "error": {"code": -32600, "message": original},
-        }).encode()
+        body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": "server-error",
+                "error": {"code": -32600, "message": original},
+            }
+        ).encode()
         result = json.loads(_patch_error_body(body))
         assert result["jsonrpc"] == "2.0"
         assert result["id"] == "server-error"
@@ -66,25 +72,27 @@ class TestPatchErrorBody:
 # ---------------------------------------------------------------------------
 
 
-def _make_http_scope() -> dict:
+def _make_http_scope() -> dict[str, Any]:
     return {"type": "http", "method": "GET", "path": "/mcp"}
 
 
-def _make_body_message(body: bytes, more_body: bool = False) -> dict:
+def _make_body_message(body: bytes, more_body: bool = False) -> dict[str, Any]:
     return {"type": "http.response.body", "body": body, "more_body": more_body}
 
 
-async def _run_middleware(app, scope, response_start: dict, response_body: dict) -> list[dict]:
+async def _run_middleware(
+    app: Any, scope: Any, response_start: dict[str, Any], response_body: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Executa o middleware e coleta as mensagens enviadas ao cliente."""
-    sent: list[dict] = []
+    sent: list[dict[str, Any]] = []
 
-    async def fake_receive():
+    async def fake_receive() -> dict[str, Any]:
         return {"type": "http.disconnect"}
 
-    async def fake_send(message: dict) -> None:
+    async def fake_send(message: dict[str, Any]) -> None:
         sent.append(message)
 
-    async def fake_app(scope, receive, send):
+    async def fake_app(scope: Any, receive: Any, send: Any) -> None:
         await send(response_start)
         await send(response_body)
 
@@ -97,11 +105,17 @@ class TestFriendlyErrorMiddleware:
     async def test_406_com_mensagem_conhecida_eh_traduzida(self) -> None:
         original = "Not Acceptable: Client must accept text/event-stream"
         body = json.dumps({"error": {"message": original}}).encode()
-        start = {"type": "http.response.start", "status": 406, "headers": [
-            (b"content-type", b"application/json"),
-            (b"content-length", str(len(body)).encode()),
-        ]}
-        sent = await _run_middleware(None, _make_http_scope(), start, _make_body_message(body))
+        start = {
+            "type": "http.response.start",
+            "status": 406,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+        sent = await _run_middleware(
+            None, _make_http_scope(), start, _make_body_message(body)
+        )
 
         assert len(sent) == 2
         assert sent[0]["status"] == 406
@@ -111,10 +125,16 @@ class TestFriendlyErrorMiddleware:
     async def test_406_atualiza_content_length(self) -> None:
         original = "Not Acceptable: Client must accept text/event-stream"
         body_in = json.dumps({"error": {"message": original}}).encode()
-        start = {"type": "http.response.start", "status": 406, "headers": [
-            (b"content-length", str(len(body_in)).encode()),
-        ]}
-        sent = await _run_middleware(None, _make_http_scope(), start, _make_body_message(body_in))
+        start = {
+            "type": "http.response.start",
+            "status": 406,
+            "headers": [
+                (b"content-length", str(len(body_in)).encode()),
+            ],
+        }
+        sent = await _run_middleware(
+            None, _make_http_scope(), start, _make_body_message(body_in)
+        )
 
         body_out = sent[1]["body"]
         headers_out = dict(sent[0]["headers"])
@@ -123,7 +143,9 @@ class TestFriendlyErrorMiddleware:
     async def test_200_passa_sem_buffering(self) -> None:
         body = b'{"result": "ok"}'
         start = {"type": "http.response.start", "status": 200, "headers": []}
-        sent = await _run_middleware(None, _make_http_scope(), start, _make_body_message(body))
+        sent = await _run_middleware(
+            None, _make_http_scope(), start, _make_body_message(body)
+        )
 
         assert sent[0]["type"] == "http.response.start"
         assert sent[0]["status"] == 200
@@ -131,17 +153,25 @@ class TestFriendlyErrorMiddleware:
 
     async def test_406_mensagem_desconhecida_passa_inalterada(self) -> None:
         body = json.dumps({"error": {"message": "Outro erro qualquer"}}).encode()
-        start = {"type": "http.response.start", "status": 406, "headers": [
-            (b"content-length", str(len(body)).encode()),
-        ]}
-        sent = await _run_middleware(None, _make_http_scope(), start, _make_body_message(body))
+        start = {
+            "type": "http.response.start",
+            "status": 406,
+            "headers": [
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+        sent = await _run_middleware(
+            None, _make_http_scope(), start, _make_body_message(body)
+        )
 
-        assert json.loads(sent[1]["body"]) == {"error": {"message": "Outro erro qualquer"}}
+        assert json.loads(sent[1]["body"]) == {
+            "error": {"message": "Outro erro qualquer"}
+        }
 
     async def test_scope_nao_http_passa_diretamente(self) -> None:
         chamadas: list[str] = []
 
-        async def fake_app(scope, receive, send):
+        async def fake_app(scope: Any, receive: Any, send: Any) -> None:
             chamadas.append(scope["type"])
 
         middleware = _FriendlyErrorMiddleware(fake_app)
@@ -153,18 +183,22 @@ class TestFriendlyErrorMiddleware:
         full_body = json.dumps({"error": {"message": original}}).encode()
         parte1, parte2 = full_body[:10], full_body[10:]
 
-        sent: list[dict] = []
+        sent: list[dict[str, Any]] = []
 
-        async def fake_receive():
+        async def fake_receive() -> dict[str, Any]:
             return {"type": "http.disconnect"}
 
-        async def fake_send(message: dict) -> None:
+        async def fake_send(message: dict[str, Any]) -> None:
             sent.append(message)
 
-        async def fake_app(scope, receive, send):
+        async def fake_app(scope: Any, receive: Any, send: Any) -> None:
             await send({"type": "http.response.start", "status": 406, "headers": []})
-            await send({"type": "http.response.body", "body": parte1, "more_body": True})
-            await send({"type": "http.response.body", "body": parte2, "more_body": False})
+            await send(
+                {"type": "http.response.body", "body": parte1, "more_body": True}
+            )
+            await send(
+                {"type": "http.response.body", "body": parte2, "more_body": False}
+            )
 
         middleware = _FriendlyErrorMiddleware(fake_app)
         await middleware(_make_http_scope(), fake_receive, fake_send)
