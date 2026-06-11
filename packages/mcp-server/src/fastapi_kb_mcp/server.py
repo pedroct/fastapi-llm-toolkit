@@ -28,10 +28,12 @@ Execução:
 from __future__ import annotations
 
 from functools import lru_cache
+import json
 import os
 from typing import TYPE_CHECKING, Any
 
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
 
 from .project import load_openapi, summarize_openapi
 
@@ -39,6 +41,71 @@ if TYPE_CHECKING:
     from fastapi_kb_rag import QdrantIndex
 
 mcp = FastMCP("fastapi-kb")
+
+_ACCEPT_ERRORS: dict[str, str] = {
+    "Not Acceptable: Client must accept text/event-stream": (
+        "Cabeçalho Accept inválido: inclua 'text/event-stream' para usar o transporte "
+        "streamable-http. Envie: Accept: application/json, text/event-stream"
+    ),
+    "Not Acceptable: Client must accept application/json": (
+        "Cabeçalho Accept inválido: inclua 'application/json' na requisição."
+    ),
+    "Not Acceptable: Client must accept both application/json and text/event-stream": (
+        "Cabeçalho Accept inválido: inclua 'application/json, text/event-stream' na requisição."
+    ),
+}
+
+
+class _FriendlyErrorMiddleware:
+    """Traduz mensagens de erro 406 do protocolo MCP para texto legível em português."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        buffered_start: dict | None = None
+        buffer: list[bytes] = []
+
+        async def patched_send(message: dict) -> None:
+            nonlocal buffered_start
+
+            if message["type"] == "http.response.start" and message.get("status") == 406:
+                buffered_start = message
+                return
+
+            if message["type"] == "http.response.body" and buffered_start is not None:
+                buffer.append(message.get("body", b""))
+                if not message.get("more_body", False):
+                    body = _patch_error_body(b"".join(buffer))
+                    headers = [
+                        (k, v)
+                        for k, v in buffered_start["headers"]
+                        if k.lower() != b"content-length"
+                    ]
+                    headers.append((b"content-length", str(len(body)).encode()))
+                    await send({**buffered_start, "headers": headers})
+                    await send({"type": "http.response.body", "body": body, "more_body": False})
+                return
+
+            await send(message)
+
+        await self.app(scope, receive, patched_send)
+
+
+def _patch_error_body(body: bytes) -> bytes:
+    try:
+        data = json.loads(body)
+        msg = data["error"]["message"]
+        if msg in _ACCEPT_ERRORS:
+            data["error"]["message"] = _ACCEPT_ERRORS[msg]
+            return json.dumps(data, ensure_ascii=False).encode()
+    except (json.JSONDecodeError, KeyError, TypeError):
+        pass
+    return body
 
 
 @lru_cache(maxsize=1)
@@ -159,6 +226,7 @@ def main() -> None:
             transport="streamable-http",
             host="0.0.0.0",  # noqa: S104 — bind em todas as interfaces é intencional no container
             port=int(os.environ.get("PORT", "8000")),
+            middleware=[Middleware(_FriendlyErrorMiddleware)],
         )
     else:
         mcp.run()
