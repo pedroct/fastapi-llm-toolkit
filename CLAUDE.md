@@ -171,6 +171,24 @@ approval"); confira com `claude mcp list`.
 
 O índice é construído uma vez via `@lru_cache` em `_get_index()`.
 
+### Regra de uso obrigatório do MCP fastapi-kb
+
+**Nunca assuma a API do FastAPI de memória.** A assinatura de classes, parâmetros
+e defaults mudam entre versões — use sempre o MCP para confirmar antes de sugerir
+código. Isso se aplica a qualquer interação que envolva código FastAPI neste projeto.
+
+| Situação | Tool a usar |
+|----------|-------------|
+| Antes de sugerir como usar qualquer classe ou função do FastAPI | `search_reference(query, version="0.115.x")` |
+| Antes de afirmar a assinatura de um símbolo (`FastAPI`, `APIRouter`, `Depends`…) | `get_symbol(symbol, version="0.115.x")` |
+| Antes de criar ou revisar um endpoint | `search_reference` para o padrão + `get_symbol` para as classes usadas |
+| Ao responder "qual o parâmetro correto para X" | `search_reference` ou `get_symbol` — nunca de memória |
+| Ao ler o `openapi.json` do projeto do usuário | `read_project_openapi(path_or_url)` |
+
+**Versão padrão:** `0.115.x` (a do projeto). Se o projeto tiver outra versão
+declarada no `pyproject.toml`, use essa; consulte `list_known_versions()` para
+confirmar que está indexada.
+
 ---
 
 ## 8. Testes unitários
