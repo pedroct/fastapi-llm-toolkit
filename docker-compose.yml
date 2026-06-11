@@ -1,8 +1,13 @@
+# Stack base — compartilhada por dev (com docker-compose.override.yml automático)
+# e produção (com docker-compose.gateway.yml via `-f`, no VPS).
+#
+# Auto-seed: o serviço `indexer` roda build_index contra o Qdrant a cada `up`
+# (idempotente — ids uuid5 determinísticos, sem --recreate). O chunks.jsonl já
+# vem embutido na imagem (gerado pelo ingest no build — ver Dockerfile), então
+# o índice se materializa sozinho, sem nenhum passo manual nem scp.
 services:
   mcp-server:
     image: ghcr.io/pedroct/fastapi-llm-toolkit:latest
-    ports:
-      - "8000:8000"
     environment:
       MCP_TRANSPORT: streamable-http
       FASTAPI_KB_QDRANT_URL: http://qdrant:6333
@@ -11,18 +16,52 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
+      indexer:
+        condition: service_completed_successfully
+    networks:
+      internal: {}
     restart: unless-stopped
+
+  # One-shot: semeia o índice e sai. mcp-server só sobe após este completar.
+  indexer:
+    image: ghcr.io/pedroct/fastapi-llm-toolkit:latest
+    command:
+      - uv
+      - run
+      - python
+      - -m
+      - fastapi_kb_rag.build_index
+      - --chunks
+      - output/chunks.jsonl
+      - --url
+      - http://qdrant:6333
+    environment:
+      FASTAPI_KB_QDRANT_URL: http://qdrant:6333
+    volumes:
+      - model_cache:/root/.cache/huggingface
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    networks:
+      internal: {}
+    restart: "no"
 
   qdrant:
     image: qdrant/qdrant:v1.18.0
     volumes:
       - qdrant_data:/qdrant/storage
     healthcheck:
+      # a imagem do qdrant não tem curl/wget — usa o TCP check nativo do bash
       test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/6333'"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      internal: {}
     restart: unless-stopped
+
+networks:
+  internal: {}
 
 volumes:
   qdrant_data:

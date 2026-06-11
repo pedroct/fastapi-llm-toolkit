@@ -11,3 +11,6 @@ coverage.xml
 .scannerwork/
 .sonar/
 .mcp.json
+*.ssl/
+pedroct_fullchain.pem
+pedroct_privkey.pem

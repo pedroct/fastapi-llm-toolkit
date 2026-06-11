@@ -1,13 +1,18 @@
 # Sobrescreve docker-compose.yml para desenvolvimento local.
 # Aplicado automaticamente por `docker compose` — sem flags extras.
-# Produção usa docker-compose.yml sozinho (sem este arquivo).
+# Produção NÃO usa este arquivo: o deploy roda
+#   docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
+# (o -f explícito desabilita o auto-merge deste override).
 services:
   mcp-server:
     build: .
     image: fastapi-llm-toolkit:local
-    volumes:
-      - model_cache:/root/.cache/huggingface
-      - ./output:/app/output   # acessa chunks.jsonl para build_index
+    ports:
+      - "8000:8000"   # acesso direto local (em prod o gateway proxia, sem porta crua)
+
+  # usa a imagem buildada localmente em vez da do GHCR
+  indexer:
+    image: fastapi-llm-toolkit:local
 
   qdrant:
     ports:
