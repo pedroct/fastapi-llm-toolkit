@@ -1,0 +1,21 @@
+# Overlay de PRODUÇÃO — integra o mcp-server ao reverse proxy do VPS.
+# Aplicado só no VPS, explicitamente:
+#   docker compose -f docker-compose.yml -f docker-compose.gateway.yml up -d
+#
+# O `shared-gateway` (nginx) termina TLS e proxia por server_name para
+# http://fastapi-kb:8000 nesta rede. NÃO publicamos porta crua: o acesso
+# externo passa só pelo gateway (subdomínio + cert). A rede é externa e já
+# existe no VPS (criada pela stack do gateway).
+services:
+  mcp-server:
+    networks:
+      internal: {}
+      shared_gateway_network:
+        # alias distinto p/ o gateway proxiar sem colidir com outros serviços
+        # 'mcp-server' já presentes no VPS (ex.: unio-infra).
+        aliases:
+          - fastapi-kb
+
+networks:
+  shared_gateway_network:
+    external: true
