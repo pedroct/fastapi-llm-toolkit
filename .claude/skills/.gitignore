@@ -1,0 +1,6 @@
+# Ignora todo symlink novo por padrão; só os que apontam para packages/skills/
+# (skills locais do projeto) são explicitamente permitidos.
+*
+!.gitignore
+!dependency-injection
+!endpoint-scaffold

@@ -14,3 +14,15 @@ coverage.xml
 *.ssl/
 pedroct_fullchain.pem
 pedroct_privkey.pem
+
+# ambiente e secrets
+.env
+
+# artefatos de teste
+.coverage
+
+# Claude Code — skills baixadas externamente (recriadas pelo harness)
+.agents/
+
+# IDE pessoal
+fastapi-llm-toolkit.code-workspace
