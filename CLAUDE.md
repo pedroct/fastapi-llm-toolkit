@@ -163,10 +163,11 @@ Config por env: `FASTAPI_KB_QDRANT_URL`, `FASTAPI_KB_QDRANT_PATH` (default
 `.qdrant`), `FASTAPI_KB_MODEL`. Conexão ao Claude Desktop e ao **Claude Code**
 (via `.mcp.json` + Docker): ver `packages/mcp-server/README.md`.
 
-O `.mcp.json` da raiz já registra o servidor `fastapi-kb` por HTTP
-(`http://localhost:8000/mcp`, a stack Docker do §13). Na 1ª sessão do `claude`
-neste diretório, aprove o servidor (fica "Pending approval"); confira com
-`claude mcp list`.
+Endpoint de produção: `https://mcp.pedroct.com.br/fastapi-llm-toolkit` (VPS,
+nginx + cert curinga `*.pedroct.com.br`). O `.mcp.json` da raiz registra o
+servidor local (`http://localhost:8000/mcp`, para desenvolvimento com Docker).
+Na 1ª sessão do `claude` neste diretório, aprove o servidor (fica "Pending
+approval"); confira com `claude mcp list`.
 
 O índice é construído uma vez via `@lru_cache` em `_get_index()`.
 
@@ -376,16 +377,14 @@ Qdrant.
 Setup completo, do zero, já validado end-to-end:
 
 ```bash
-docker compose build                       # imagem fastapi-llm-toolkit:local
-docker compose up -d qdrant                # sobe só o Qdrant primeiro
-
-# indexa os 870 chunks NO SERVIDOR Qdrant (--url, NÃO --path; ver armadilhas)
-docker compose run --rm mcp-server \
-  uv run python -m fastapi_kb_rag.build_index \
-    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
-
-docker compose up -d                       # sobe o mcp-server
+docker compose build        # imagem fastapi-llm-toolkit:local (~1.8 GB, torch CPU)
+docker compose up -d        # auto-seed: indexer semeia 870 chunks → mcp-server em :8000/mcp
 ```
+
+O `indexer` (serviço one-shot) roda `build_index` automaticamente a cada `up` e
+o `mcp-server` só sobe após o indexer completar (`depends_on: service_completed_successfully`).
+**Não é necessário rodar `build_index` manualmente** — o `chunks.jsonl` já vem
+embutido na imagem (gerado no build pelo Dockerfile).
 
 Dashboard do Qdrant (só em dev): **http://localhost:6333/dashboard** — inspeciona
 a collection `fastapi_reference`, payloads e buscas.
@@ -433,7 +432,7 @@ curl -sL -X POST http://localhost:8000/mcp/ \
 
 | Sintoma | Causa | Correção |
 |---------|-------|----------|
-| `uv run` reinstala semgrep/mypy (~80 MB) a cada chamada | `uv run` resincroniza o venv incluindo o grupo `dev` do workspace | `ENV UV_NO_SYNC=1` no Dockerfile |
+| `uv run` reinstala semgrep/mypy (~80 MB) a cada chamada | `uv run` resincroniza o venv incluindo o grupo `dev` do workspace | `ENV UV_NO_SYNC=1` no Dockerfile, **antes** do primeiro `RUN uv run` |
 | Healthcheck do Qdrant sempre `unhealthy` | a imagem `qdrant/qdrant` **não tem** `curl` nem `wget` | TCP check nativo do bash: `bash -c '</dev/tcp/localhost/6333'` |
 | Tool retorna `Collection 'fastapi_reference' doesn't exist` | `build_index` sem `--url` cai no modo `:memory:` e perde tudo ao sair do container | sempre `--url http://qdrant:6333` (o CLI **ignora** as env vars `FASTAPI_KB_*`) |
 | Qdrant em crash loop após bump de versão (`unknown variant on_disk`) | formato de dados da v1.12.6 incompatível com a v1.18.0 | apagar o volume (`docker volume rm fastapi-llm-toolkit_qdrant_data`) e reindexar |

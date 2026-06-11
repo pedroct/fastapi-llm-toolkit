@@ -40,7 +40,8 @@ skills: artefatos estáticos (SKILL.md); consomem o MCP/RAG em runtime
 ## Setup
 
 ```bash
-pip install -e packages/core -e packages/rag -e packages/mcp-server
+uv sync                                                    # instala workspace + grupo dev
+uv run pre-commit install --hook-type commit-msg --hook-type pre-commit
 ```
 
 ## Fluxo do RAG
@@ -104,24 +105,28 @@ Resultado típico (FastAPI 0.115.x): ~870 chunks, dos quais ~680 "normais"
 > No retrieval, considere filtrar `priority != 'low'` por padrão e só incluir
 > `source_code` quando a pergunta for sobre implementação.
 
-## Servir via MCP (Docker) e conectar ao Claude Code
+## Servir via MCP e conectar ao Claude Code
 
-A stack Docker (`mcp-server` + `qdrant`) expõe o protocolo MCP em
-`http://localhost:8000/mcp` (streamable-http). Do zero:
+### Opção A — servidor de produção (recomendado)
 
-```bash
-docker compose build
-docker compose up -d qdrant
+O servidor está no ar em `https://mcp.pedroct.com.br/fastapi-llm-toolkit`.
+Basta apontar o `.mcp.json` do seu projeto para esse endereço:
 
-# indexa os 870 chunks NO SERVIDOR Qdrant (--url, nunca --path)
-docker compose run --rm mcp-server \
-  uv run python -m fastapi_kb_rag.build_index \
-    --chunks output/chunks.jsonl --url http://qdrant:6333 --recreate
-
-docker compose up -d        # sobe o mcp-server em :8000/mcp
+```json
+{ "mcpServers": { "fastapi-kb": { "type": "http", "url": "https://mcp.pedroct.com.br/fastapi-llm-toolkit" } } }
 ```
 
-O `.mcp.json` na raiz já registra o servidor para o **Claude Code**:
+### Opção B — Docker local (desenvolvimento / offline)
+
+A stack tem **auto-seed**: o serviço `indexer` semeia o Qdrant automaticamente
+na primeira subida — não é necessário rodar `build_index` manualmente.
+
+```bash
+docker compose build        # imagem fastapi-llm-toolkit:local (~1.8 GB, torch CPU)
+docker compose up -d        # qdrant + indexer (auto-seed 870 chunks) + mcp-server em :8000/mcp
+```
+
+O `.mcp.json` na raiz já registra o servidor local para o **Claude Code**:
 
 ```json
 { "mcpServers": { "fastapi-kb": { "type": "http", "url": "http://localhost:8000/mcp" } } }
